@@ -194,6 +194,12 @@ sudo reboot
 curl -sfL https://get.k3s.io | sh -s - --disable traefik
 ```
 
+Статус сервісу можна перевірити так:
+
+```bash
+systemctl status k3s.service
+```
+
 > Я використовую **Ingress NGINX**, тому одразу прибираю `traefik`, шоб не заважав.
 
 
@@ -230,9 +236,14 @@ sudo cat /etc/rancher/k3s/k3s.yaml
 curl -sfL https://get.k3s.io | \
   K3S_URL=https://<IP_MASTER>:6443 \
   K3S_TOKEN=<NODE_TOKEN> \
-  sh -s - --disable traefik
+  sh -
 ```
 
+Статус сервісу можна перевірити так:
+
+```bash
+systemctl status k3s-agent.service
+```
 ---
 
 ### Перевіряємо
@@ -242,3 +253,5 @@ kubectl get nodes
 ```
 
 Має бути +1 вузол Pi зі статусом `Ready`.
+
+> P.S. Грохнув свій кластер щоб то написати.
