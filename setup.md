@@ -109,6 +109,29 @@ sudo reboot
 Для довідки: ось як зараз це виглядає:
 ![Image](img/boot.png)
 
+
+Поклацати можна тут:
+```bash
+sudo raspi-config
+```
+
+---
+
+### Крок 6.1: Фіксимо проблеми з живленням USB (якщо Pi не стартує з SSD)
+
+Якщо ви використовуєте не рідний блок (навіть з PD) і Pi 5 не стартує або перезавантажується, коли на USB підключений SSD чи інший “прожорливий” девайс — є просте рішення:
+
+```bash
+sudo raspi-config
+```
+
+Далі переходимо:
+
+```
+Performance Options → USB power limit → No
+```
+
+> ! Впевніться що живлення достатнє, але вони просто не домовилися.
 ---
 
 ### Крок 7: Ставимо обов'язковий мінімум для k3s
@@ -120,7 +143,6 @@ sudo reboot
 Деякі образи Raspberry Pi OS Lite не мають його з коробки, тому ставимо руками:
 
 ```bash
-sudo apt update
 sudo apt install -y iptables
 ```
 
@@ -143,7 +165,7 @@ sudo systemctl disable dphys-swapfile
 Виконуємо:
 
 ```bash
-cat /boot/cmdline.txt
+cat /boot/firmware/cmdline.txt
 ```
 
 Перевіряємо, що там є `cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1`
@@ -198,3 +220,25 @@ sudo cat /etc/rancher/k3s/k3s.yaml
 
 ---
 
+### Крок 9: Додаємо worker-ноду до кластера без Traefik
+
+На `master`-ноді (де вже стоїть `k3s`), ми маємо IP та токен:
+
+На новій worker-ноді запускаємо:
+
+```bash
+curl -sfL https://get.k3s.io | \
+  K3S_URL=https://<IP_MASTER>:6443 \
+  K3S_TOKEN=<NODE_TOKEN> \
+  sh -s - --disable traefik
+```
+
+---
+
+### Перевіряємо
+
+```bash
+kubectl get nodes
+```
+
+Має бути +1 вузол Pi зі статусом `Ready`.
