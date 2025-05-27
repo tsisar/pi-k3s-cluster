@@ -1,0 +1,36 @@
+# Ignore directory where Terraform stores state and plugin data
+**/.terraform/*
+
+# Ignore all .tfstate files to prevent uploading sensitive data to the repository
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+*.tfplan
+*.backup
+
+# Ignore configuration files for JetBrains IDEs (IntelliJ IDEA, PyCharm, WebStorm, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Ignore local temporary files that can be generated
+*.swp
+*.bak
+*.tmp
+*.log
+
+# MacOS system files that might be unwanted in the repository
+.DS_Store
+
+# Windows thumbnail cache files that might be unwanted in the repository
+Thumbs.db
+
+**/.auth/*
+
+**/.notes/*
+
+.dev/
+.ssh/
+

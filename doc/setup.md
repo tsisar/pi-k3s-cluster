@@ -38,11 +38,11 @@ https://www.raspberrypi.com/software/
 ```bash
 ssh-keygen -t ed25519 -C "pi-cluster"
 ```
-Натискаємо Enter, коли запитає шлях — ключ збережеться у ~/.ssh/id_ed25519 і ~/.ssh/id_ed25519.pub.
+Коли запитає шлях — вводимо шлях, назву (наприклад k3s), ключ збережеться у ~/.ssh/k3s і ~/.ssh/k3s.pub.
 
 Можна одразу додати ключ до ssh:
 ```bash
-ssh-add ~/.ssh/id_ed25519
+ssh-add ~/.ssh/k3s
 ```
 
 Після цього відкриваємо файл ~/.ssh/id_ed25519.pub, копіюємо його вміст.
