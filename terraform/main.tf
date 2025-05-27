@@ -84,9 +84,8 @@ module "vault_config" {
   host_external = local.hosts.vault_external
 
   depends_on = [
-    mikrotik_dns_record.record,
-    module.cluster_issuer["enabled"],
-    module.vault["enabled"]
+    module.cluster_issuer,
+    module.vault
   ]
 }
 
@@ -97,7 +96,7 @@ module "monitoring" {
   prometheus_host = local.hosts.prometheus
 
   depends_on = [
-    module.vault_config["enabled"]
+    module.vault_config
   ]
 }
 
@@ -110,6 +109,6 @@ module "argo_cd" {
   email                     = var.email
 
   depends_on = [
-    module.vault_config["enabled"]
+    module.vault_config
   ]
 }
