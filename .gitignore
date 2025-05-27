@@ -8,6 +8,8 @@ crash.log
 *.tfvars
 *.tfplan
 *.backup
+*.lock.hcl
+
 
 # Ignore configuration files for JetBrains IDEs (IntelliJ IDEA, PyCharm, WebStorm, etc.)
 .idea/

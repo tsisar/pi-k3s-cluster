@@ -1,0 +1,9 @@
+controller:
+  kind: Deployment
+  replicas: 1
+  service:
+    type: LoadBalancer
+    externalTrafficPolicy: Local
+  ingressClassResource:
+    enabled: true
+    default: true
