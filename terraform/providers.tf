@@ -19,13 +19,13 @@ terraform {
 
 provider "kubernetes" {
   config_path    = "~/.kube/config"
-  config_context = "pi-cluster"
+  config_context = "pi-k3s-cluster"
 }
 
 provider "helm" {
   kubernetes {
     config_path    = "~/.kube/config"
-    config_context = "pi-cluster"
+    config_context = "pi-k3s-cluster"
   }
 }
 
@@ -39,7 +39,7 @@ provider "mikrotik" {
 provider "tls" {}
 
 provider "vault" {
-  address = try("http://${module.vault["enabled"].host_local}", var.vault_address)
+  address = try("https://${module.vault["enabled"].host_external}", var.vault_address)
   token   = try(module.vault["enabled"].root_token, var.vault_token)
 }
 

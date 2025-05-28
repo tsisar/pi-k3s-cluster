@@ -1,8 +1,3 @@
-variable "stage" {
-  description = "Please enter the stage number: 1, 2"
-  type        = number
-}
-
 variable "domain_local" {
   description = "Domain"
   type        = string

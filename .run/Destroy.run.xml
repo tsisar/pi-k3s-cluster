@@ -1,0 +1,23 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Destroy" type="TerraformConfigurationType" factoryName="Terraform init" show_console_on_std_err="false" show_console_on_std_out="false">
+    <option name="allowRunningInParallel" value="false" />
+    <option name="commandType" value="DESTROY" />
+    <option name="envFilePaths">
+      <list />
+    </option>
+    <option name="envs">
+      <map />
+    </option>
+    <option name="globalOptions" value="" />
+    <option name="passGlobalOptions" value="false" />
+    <option name="passParentEnvs" value="true" />
+    <option name="programArguments" value="" />
+    <option name="programParameters" value="destroy" />
+    <option name="projectPathOnTarget" />
+    <option name="selectedOptions">
+      <list />
+    </option>
+    <option name="workingDirectory" value="$PROJECT_DIR$/terraform" />
+    <method v="2" />
+  </configuration>
+</component>

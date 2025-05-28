@@ -1,0 +1,95 @@
+---
+- name: Step 3 — Install K3s on master
+  hosts: master
+  become: true
+
+  tasks:
+    - name: Install K3s (master node, without Traefik)
+      shell: |
+        curl -sfL https://get.k3s.io | sh -s - --disable traefik
+      args:
+        creates: /etc/rancher/k3s/k3s.yaml
+
+    - name: Read node-token from master
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_raw
+
+    - name: Set fact with decoded token
+      set_fact:
+        k3s_token: "{{ k3s_token_raw.content | b64decode }}"
+
+    - name: Fetch kubeconfig from master node
+      fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: /tmp/kubeconfig-{{ inventory_hostname }}
+        flat: true
+
+    - name: Replace 127.0.0.1 with actual IP
+      replace:
+        path: /tmp/kubeconfig-{{ inventory_hostname }}
+        regexp: '127\.0\.0\.1'
+        replace: '{{ hostvars[inventory_hostname].ansible_host }}'
+      delegate_to: localhost
+      become: false
+
+    - name: Rename 'default' context/cluster/user to "{{ kube_context_name }}"
+      replace:
+        path: /tmp/kubeconfig-{{ inventory_hostname }}
+        regexp: '\b(default)\b'
+        replace: '{{ kube_context_name }}'
+      delegate_to: localhost
+      become: false
+
+    - name: Ensure ~/.kube directory exists
+      file:
+        path: "{{ lookup('env','HOME') }}/.kube"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      become: false
+
+    - name: Ensure ~/.kube/config exists if missing
+      file:
+        path: "{{ lookup('env','HOME') }}/.kube/config"
+        state: touch
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+
+    - name: Backup existing kubeconfig
+      copy:
+        src: "{{ lookup('env','HOME') }}/.kube/config"
+        dest: "{{ lookup('env','HOME') }}/.kube/config.bak"
+      ignore_errors: true
+      delegate_to: localhost
+      become: false
+
+    - name: Merge new kubeconfig with existing config
+      shell: |
+        KUBECONFIG=/tmp/kubeconfig-{{ inventory_hostname }}:~/.kube/config \
+        kubectl config view --flatten > /tmp/merged_kubeconfig && \
+        mv /tmp/merged_kubeconfig ~/.kube/config
+      args:
+        executable: /bin/bash
+      delegate_to: localhost
+      become: false
+
+- name: Step 4 — Install K3s on workers
+  hosts: workers
+  become: true
+
+  vars:
+    master_node: "{{ groups['master'][0] }}"
+    k3s_url: "https://{{ hostvars[master_node]['ansible_host'] }}:6443"
+    k3s_token: "{{ hostvars[master_node]['k3s_token'] | trim }}"
+
+  tasks:
+    - name: Install K3s (worker node)
+      shell: |
+        curl -sfL https://get.k3s.io | sh -
+      environment:
+        K3S_URL: "{{ k3s_url }}"
+        K3S_TOKEN: "{{ k3s_token }}"
+      args:
+        creates: /etc/rancher/k3s/k3s.yaml

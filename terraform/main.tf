@@ -1,13 +1,15 @@
 locals {
+  current_stage = tonumber(data.external.current_stage.result.stage)
+
   enabled_modules = {
-    ingress_nginx  = var.stage >= 1
-    cert_manager   = var.stage >= 1
-    redis          = var.stage >= 1
-    vault          = var.stage >= 1
-    cluster_issuer = var.stage >= 2
-    vault_config   = var.stage >= 2
-    monitoring     = var.stage >= 2
-    argo_cd        = var.stage >= 2
+    ingress_nginx  = local.current_stage >= 1
+    cert_manager   = local.current_stage >= 1
+    redis          = local.current_stage >= 1
+    vault          = local.current_stage >= 1
+    cluster_issuer = local.current_stage >= 2
+    vault_config   = local.current_stage >= 2
+    monitoring     = local.current_stage >= 2
+    argo_cd        = local.current_stage >= 2
   }
 
   hosts = {
@@ -22,6 +24,10 @@ locals {
     vault_external  = "vault.${var.domain_external}"
   }
 
+}
+
+data "external" "current_stage" {
+  program = ["bash", "${path.module}/scripts/get_stage.sh"]
 }
 
 # ================= Mikrotik ==================
@@ -68,11 +74,28 @@ module "vault" {
   ]
 }
 
+resource "null_resource" "bump_stage_to_2" {
+  provisioner "local-exec" {
+    command = "jq '.stage = \"2\"' ${path.module}/scripts/stage.json > ${path.module}/scripts/stage.tmp && mv ${path.module}/scripts/stage.tmp ${path.module}/scripts/stage.json"
+  }
+
+  triggers = {
+    always_run = timestamp()
+  }
+
+  depends_on = [
+    module.ingress_nginx,
+    module.cert_manager,
+    module.redis,
+    module.vault
+  ]
+}
+
 # ================= Stage-2 ====================
 
 module "cluster_issuer" {
   source   = "./modules/cluster-issuer"
-  for_each = local.enabled_modules.cert_manager ? { "enabled" = {} } : {}
+  for_each = local.enabled_modules.cluster_issuer ? { "enabled" = {} } : {}
   email    = var.email
 }
 
