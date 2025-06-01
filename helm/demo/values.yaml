@@ -6,3 +6,11 @@ image:
 
 ingress:
   host: "demo.tsisar.com.ua"
+
+resources:
+  limits:
+    cpu: "100m"
+    memory: "128Mi"
+  requests:
+    cpu: "25m"
+    memory: "32Mi"
