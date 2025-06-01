@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Fail on any error
+set -e
+
+# Check arguments
+if [ "$#" -ne 2 ]; then
+  echo "Usage: kubectl kubeplugin <namespace> <resource_type>"
+  echo "Example: kubectl kubeplugin kube-system pod"
+  exit 1
+fi
+
+NAMESPACE=$1
+RESOURCE_TYPE=$2
+
+# Header
+echo "Resource, Namespace, Name, CPU, Memory"
+
+# Get resource usage via metrics
+kubectl top "$RESOURCE_TYPE" -n "$NAMESPACE" | tail -n +2 | while read -r line; do
+  NAME=$(echo "$line" | awk '{print $1}')
+  CPU=$(echo "$line" | awk '{print $2}')
+  MEMORY=$(echo "$line" | awk '{print $3}')
+  echo "$RESOURCE_TYPE, $NAMESPACE, $NAME, $CPU, $MEMORY"
+done

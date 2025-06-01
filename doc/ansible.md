@@ -38,7 +38,7 @@ kube_context_name=pi-k3s-cluster
 - Raspberry Pi з Raspberry Pi OS (Lite або Full)
 - Ansible ≥ 2.10
 - kubectl встановлений локально для управління кластером
-- Наявність SSH ключа, який дозволяє підключення без пароля, та додано до ssh
+- Наявність SSH ключа, який дозволяє підключення без пароля
 
 ## Інструкція використання
 
@@ -73,7 +73,7 @@ ansible-playbook -i inventory/pi-cluster.ini playbooks/setup-k3s.yml
 kubectl get nodes
 ```
 
-## Видалення кластеру (опціонально)
+## Видалення K3s (опціонально)
 
 На будь-якому Pi:
 
