@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Release.Name }}-ingress-external
+  name: {{ .Release.Name }}-ingress
   annotations:
     cert-manager.io/issuer: {{ .Release.Name }}-issuer
     nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
