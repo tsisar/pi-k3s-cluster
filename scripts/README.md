@@ -4,21 +4,30 @@
 
 ## Installation
 
-1. Move the script to your `scripts/` directory:
+1. Make the script executable:
     ```bash
-    mv kubectl-kubeplugin scripts/
-    chmod +x scripts/kubectl-kubeplugin
+    chmod +x scripts/kubeplugin
     ```
 
-2. Add the `scripts/` directory to your `PATH` (e.g., in your `.zshrc` or `.bashrc`):
+2. Create a symlink in your `$PATH` under the required name `kubectl-kubeplugin`:
     ```bash
-    export PATH="$HOME/pi-k3s-cluster/scripts:$PATH"
-    source ~/.zshrc  # or source ~/.bashrc
+    mkdir -p $HOME/bin
+    ln -sf "$PWD/scripts/kubeplugin" "$HOME/bin/kubectl-kubeplugin"
     ```
 
-3. Verify the plugin is available:
+3. Add `$HOME/bin` to your `PATH` if it's not already there (add this to `.zshrc` or `.bashrc`):
     ```bash
-    kubectl kubeplugin --help
+    export PATH="$HOME/bin:$PATH"
+    ```
+
+4. Reload your shell config:
+    ```bash
+    source ~/.zshrc  # or ~/.bashrc
+    ```
+
+5. Verify the plugin:
+    ```bash
+    kubectl kubeplugin --help  # or run with real args
     ```
 
 ## Usage
