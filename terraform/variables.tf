@@ -12,7 +12,7 @@ variable "domain_external" {
 variable "email" {
   description = "Email"
   type        = string
-  default     = "ua.pavlo.tsisar@gmail.com"
+  default     = "pavlo.tsisar@tattoo.courses"
 }
 
 variable "mikrotik_username" {
@@ -28,13 +28,12 @@ variable "mikrotik_password" {
 variable "vault_address" {
   description = "Vault address"
   type        = string
-  default     = ""
 }
 
 variable "vault_token" {
   description = "Vault root token"
   type        = string
-  default     = ""
+  sensitive   = true
 }
 
 variable "dex_git_hub_client_id" {
@@ -45,4 +44,11 @@ variable "dex_git_hub_client_id" {
 variable "dex_git_hub_client_secret" {
   description = "Dex GitHub client secret"
   type        = string
+  sensitive   = true
+}
+
+variable "github_token" {
+  description = "GitHub Token"
+  type        = string
+  sensitive   = true
 }

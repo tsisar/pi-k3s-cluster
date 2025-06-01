@@ -19,13 +19,13 @@ resource "argocd_application" "demo" {
     }
 
     source {
-      repo_url        = "https://github.com/Tsisar/pi-k3s-cluster.git"
+      repo_url        = var.repository
       path            = "helm/demo"
       target_revision = "training"
 
       helm {
         release_name = var.name
-        value_files  = ["values.yaml"]
+        value_files = ["values.yaml"]
         values = yamlencode({
           replicaCount = 1
           ingress = {
