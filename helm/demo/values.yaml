@@ -1,8 +1,8 @@
 replicaCount: 1
 
 image:
-  repository: nginx
-  tag: ""
+  repository: ptsisar/devops-types
+  tag: latest
 
 ingress:
   host: "demo.tsisar.com.ua"]
