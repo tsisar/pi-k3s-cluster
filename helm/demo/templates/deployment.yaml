@@ -21,17 +21,8 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
-      volumes:
-        - name: config
-          configMap:
-            name: {{ .Release.Name }}-config
       containers:
         - name: {{ .Release.Name }}-container
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           ports:
-            - containerPort: 80
-            - containerPort: 443
-          volumeMounts:
-            - name: config
-              mountPath: /etc/nginx/nginx.conf
-              subPath: nginx.conf
+            - containerPort: 8080
