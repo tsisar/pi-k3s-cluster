@@ -10,6 +10,11 @@ variable "namespace" {
   default     = "demo"
 }
 
+variable "repository" {
+  description = "GitHub repository URL"
+  type        = string
+}
+
 variable "host" {
   description = "Host for the demo application"
   type        = string
