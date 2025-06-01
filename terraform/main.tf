@@ -10,6 +10,7 @@ locals {
     vault_config   = local.current_stage >= 2
     monitoring     = local.current_stage >= 2
     argo_cd        = local.current_stage >= 2
+    demo           = local.current_stage >= 3
   }
 
   hosts = {
@@ -22,6 +23,7 @@ locals {
     argo            = "argo.${var.domain_external}"
     vault_local     = "vault.${var.domain_local}"
     vault_external  = "vault.${var.domain_external}"
+    demo            = "demo.${var.domain_external}"
   }
 
 }
@@ -133,5 +135,34 @@ module "argo_cd" {
 
   depends_on = [
     module.vault_config
+  ]
+}
+
+resource "null_resource" "bump_stage_to_3" {
+  provisioner "local-exec" {
+    command = "jq '.stage = \"3\"' ${path.module}/scripts/stage.json > ${path.module}/scripts/stage.tmp && mv ${path.module}/scripts/stage.tmp ${path.module}/scripts/stage.json"
+  }
+
+  triggers = {
+    always_run = timestamp()
+  }
+
+  depends_on = [
+    module.cluster_issuer,
+    module.vault_config,
+    module.monitoring,
+    module.argo_cd
+  ]
+}
+
+# ================= Stage-3 ====================
+
+module "demo" {
+  source   = "./modules/demo"
+  for_each = local.enabled_modules.demo ? { "enabled" = {} } : {}
+  host     = local.hosts.demo
+
+  depends_on = [
+    module.argo_cd
   ]
 }

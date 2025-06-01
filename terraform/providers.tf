@@ -14,6 +14,10 @@ terraform {
       source  = "hashicorp/tls"
       version = ">= 4.0.6"
     }
+    argocd = {
+      source = "argoproj-labs/argocd"
+      version = "7.8.2"
+    }
   }
 }
 
@@ -43,3 +47,8 @@ provider "vault" {
   token   = try(module.vault["enabled"].root_token, var.vault_token)
 }
 
+provider "argocd" {
+  server_addr = try(module.argo_cd["enabled"].host, "https://argo.tsisar.com.ua")
+  username    = try(module.argo_cd["enabled"].username, "admin")
+  password    = try(module.argo_cd["enabled"].password, "")
+}

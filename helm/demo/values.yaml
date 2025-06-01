@@ -1,0 +1,8 @@
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: ""
+
+ingress:
+  host: "demo.tsisar.com.ua"]
