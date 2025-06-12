@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-deployment
+  labels:
+    owner: tsisar
+    app.kubernetes.io/instance: {{ .Release.Namespace }}
+    app.kubernetes.io/name: {{ .Release.Name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      imagePullSecrets:
+        - name: docker-credentials
+      containers:
+        - name: {{ .Release.Name }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: POSTGRES_HOST
+              value: {{ .Values.env.postgres.host }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.env.postgres.port | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.env.postgres.db }}
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: password
+            - name: HASURA_GRAPHQL_DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)"
+            - name: HASURA_GRAPHQL_ENABLE_CONSOLE
+              value: "true"
+            - name: HASURA_GRAPHQL_ADMIN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hasura-credentials
+                  key: password
+          resources:
+{{ toYaml .Values.resources | indent 12 }}

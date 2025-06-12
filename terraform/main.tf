@@ -12,6 +12,7 @@ locals {
     argo_cd               = local.current_stage >= 2
     repository_deploy_key = local.current_stage >= 2
     demo                  = local.current_stage >= 2
+    indexer               = local.current_stage >= 2
   }
 
   hosts = {
@@ -25,6 +26,7 @@ locals {
     vault_local     = "vault.${var.domain_local}"
     vault_external  = "vault.${var.domain_external}"
     demo            = "demo.${var.domain_external}"
+    indexer         = "hasura.${var.domain_external}"
   }
 
 }
@@ -160,8 +162,8 @@ module "argo_cd" {
 
 # Setting up Deploy Key in GitHub repository and connecting it to ArgoCD
 module "infra" {
-  source     = "./modules/infra-repository"
-  for_each   = local.enabled_modules.repository_deploy_key ? { "enabled" = {} } : {}
+  source   = "./modules/infra-repository"
+  for_each = local.enabled_modules.repository_deploy_key ? { "enabled" = {} } : {}
 }
 
 module "demo" {
@@ -174,4 +176,13 @@ module "demo" {
     module.argo_cd,
     module.infra
   ]
+}
+
+# Indexer Module for Solana
+module "indexer" {
+  source    = "./modules/indexer"
+  for_each  = local.enabled_modules.indexer ? { "enabled" = {} } : {}
+  host      = local.hosts.indexer
+  name      = "indexer"
+  namespace = "indexer"
 }
