@@ -1,0 +1,22 @@
+image:
+  repository: hasura/graphql-engine
+  tag: v2.36.12
+
+env:
+  postgres:
+    host: postgres-service
+    port: 5432
+    db: solana-indexer
+  log:
+    level: debug
+    save: true
+  ingress:
+    host: "hasura.tsisar.com.ua"
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 1
+    memory: 2Gi
