@@ -1,0 +1,16 @@
+replicaCount: 1
+
+image:
+  repository: ptsisar/devops-types
+  tag: latest
+
+ingress:
+  host: "demo.tsisar.com.ua"
+
+resources:
+  limits:
+    cpu: "100m"
+    memory: "128Mi"
+  requests:
+    cpu: "25m"
+    memory: "32Mi"

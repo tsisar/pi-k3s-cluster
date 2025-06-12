@@ -14,6 +14,14 @@ terraform {
       source  = "hashicorp/tls"
       version = ">= 4.0.6"
     }
+    argocd = {
+      source = "argoproj-labs/argocd"
+      version = "7.8.2"
+    }
+    github = {
+      source  = "integrations/github"
+      version = ">= 6.3.0"
+    }
   }
 }
 
@@ -38,8 +46,23 @@ provider "mikrotik" {
 
 provider "tls" {}
 
+# provider "vault" {
+#   address = try("https://${module.vault["enabled"].host_external}", var.vault_address)
+#   token   = try(module.vault["enabled"].root_token, var.vault_token)
+# }
+
 provider "vault" {
-  address = try("https://${module.vault["enabled"].host_external}", var.vault_address)
-  token   = try(module.vault["enabled"].root_token, var.vault_token)
+  address = var.vault_address
+  token   = var.vault_token
 }
 
+provider "github" {
+  token = var.github_token
+  owner = "Tsisar"
+}
+
+provider "argocd" {
+  server_addr = try(module.argo_cd["enabled"].host, "https://argo.tsisar.com.ua")
+  username    = try(module.argo_cd["enabled"].username, "admin")
+  password    = try(module.argo_cd["enabled"].password, "")
+}

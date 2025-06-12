@@ -141,6 +141,10 @@ output "host" {
   value = var.host
 }
 
+output "username" {
+  value     = "admin"
+}
+
 output "password" {
   value     = random_password.argo_cd.result
   sensitive = true
