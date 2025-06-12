@@ -21,8 +21,8 @@ resource "argocd_application" "hasura" {
     }
 
     source {
-      repo_url        = "git@github.com:desync-labs/splyce-infrastructure.git"
-      path            = "k8s/hasura"
+      repo_url        = var.repository
+      path            = "helm/hasura"
       target_revision = var.branch
 
       helm {
@@ -82,10 +82,20 @@ resource "kubernetes_secret" "hasura_credentials" {
   }
 }
 
+resource "vault_generic_secret" "hasura" {
+  path = "secret/hasura"
+
+  data_json = jsonencode({
+    user     = var.hasura_user,
+    password = random_password.hasura_password.result
+  })
+}
+
 output "hasura_user" {
   value = var.hasura_user
 }
 
 output "hasura_password" {
-  value = random_password.hasura_password.result
+  value     = random_password.hasura_password.result
+  sensitive = true
 }
