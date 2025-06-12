@@ -10,6 +10,12 @@ variable "postgres_user" {
   default     = "indexer"
 }
 
+variable "postgres_nodeport" {
+  description = "PostgreSQL NodePort"
+  type        = number
+  default     = 30032
+}
+
 resource "argocd_application" "postgres" {
   metadata {
     name      = "${var.name}-postgres"
@@ -33,8 +39,8 @@ resource "argocd_application" "postgres" {
     }
 
     source {
-      repo_url        = "git@github.com:desync-labs/splyce-infrastructure.git"
-      path            = "k8s/postgres"
+      repo_url        = var.repository
+      path            = "helm/postgres"
       target_revision = var.branch
 
       helm {
@@ -43,6 +49,11 @@ resource "argocd_application" "postgres" {
         parameter {
           name  = "env.postgres_db"
           value = var.postgres_db
+        }
+
+        parameter {
+          name  = "service.nodeport"
+          value = var.postgres_nodeport
         }
       }
     }
@@ -85,10 +96,24 @@ resource "kubernetes_secret" "postgres_credentials" {
   }
 }
 
+resource "vault_generic_secret" "postgres" {
+  path = "secret/postgres"
+
+  data_json = jsonencode({
+    user     = var.postgres_user,
+    password = random_password.postgres_password.result
+  })
+}
+
 output "postgres_user" {
   value = var.postgres_user
 }
 
 output "postgres_password" {
-  value = random_password.postgres_password.result
+  value     = random_password.postgres_password.result
+  sensitive = true
+}
+
+output "postgres_nodeport" {
+  value = var.postgres_nodeport
 }

@@ -26,6 +26,11 @@ variable "network" {
   default     = "crosschain"
 }
 
+variable "repository" {
+  description = "GitHub repository URL"
+  type        = string
+}
+
 variable "branch" {
   description = "Branch to deploy"
   type        = string
