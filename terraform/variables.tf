@@ -12,7 +12,7 @@ variable "domain_external" {
 variable "email" {
   description = "Email"
   type        = string
-  default     = "pavlo.tsisar@tattoo.courses"
+  default     = "admin@example.com"
 }
 
 variable "mikrotik_username" {
