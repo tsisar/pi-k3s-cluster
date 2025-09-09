@@ -1,0 +1,136 @@
+---
+- name: Ubuntu 24 specific configurations
+  hosts: ser
+  become: true
+  when: ansible_distribution == "Ubuntu"
+
+  tasks:
+    - name: Install required packages for Ubuntu 24
+      apt:
+        name:
+          - curl
+          - wget
+          - gnupg
+          - lsb-release
+          - ca-certificates
+          - software-properties-common
+          - apt-transport-https
+        state: present
+        update_cache: true
+
+    - name: Ensure systemd-resolved is configured properly
+      systemd:
+        name: systemd-resolved
+        enabled: true
+        state: started
+
+    - name: Configure systemd-resolved for better DNS resolution
+      copy:
+        dest: /etc/systemd/resolved.conf
+        content: |
+          [Resolve]
+          DNS=192.168.88.1
+          FallbackDNS=8.8.8.8 1.1.1.1
+          DNSSEC=no
+          DNSOverTLS=no
+          MulticastDNS=no
+          LLMNR=no
+          Cache=yes
+          DNSStubListener=yes
+          ReadEtcHosts=yes
+        backup: yes
+
+    - name: Restart systemd-resolved
+      systemd:
+        name: systemd-resolved
+        state: restarted
+
+    - name: Ensure proper timezone is set
+      timezone:
+        name: UTC
+
+    - name: Install and configure chrony for time synchronization
+      apt:
+        name: chrony
+        state: present
+
+    - name: Configure chrony
+      copy:
+        dest: /etc/chrony/chrony.conf
+        content: |
+          pool 0.pool.ntp.org iburst
+          pool 1.pool.ntp.org iburst
+          pool 2.pool.ntp.org iburst
+          pool 3.pool.ntp.org iburst
+          driftfile /var/lib/chrony/drift
+          makestep 1.0 3
+          rtcsync
+          logdir /var/log/chrony
+        backup: yes
+
+    - name: Start and enable chrony
+      systemd:
+        name: chrony
+        state: started
+        enabled: true
+
+    - name: Ensure proper kernel modules are loaded
+      modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - br_netfilter
+        - overlay
+
+    - name: Ensure kernel modules are loaded on boot
+      copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          br_netfilter
+          overlay
+        backup: yes
+
+    - name: Configure sysctl for Kubernetes
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: true
+      loop:
+        - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+        - { name: 'net.ipv4.ip_forward', value: '1' }
+        - { name: 'net.ipv6.conf.all.disable_ipv6', value: '1' }
+        - { name: 'net.ipv6.conf.default.disable_ipv6', value: '1' }
+        - { name: 'vm.swappiness', value: '0' }
+        - { name: 'vm.overcommit_memory', value: '1' }
+        - { name: 'vm.panic_on_oom', value: '0' }
+        - { name: 'fs.inotify.max_user_instances', value: '8192' }
+        - { name: 'fs.inotify.max_user_watches', value: '1048576' }
+        - { name: 'fs.file-max', value: '52706963' }
+        - { name: 'fs.nr_open', value: '52706963' }
+        - { name: 'net.netfilter.nf_conntrack_max', value: '2310720' }
+
+    - name: Make sysctl changes persistent
+      copy:
+        dest: /etc/sysctl.d/99-kubernetes-cri.conf
+        content: |
+          net.bridge.bridge-nf-call-iptables = 1
+          net.ipv4.ip_forward = 1
+          net.ipv6.conf.all.disable_ipv6 = 1
+          net.ipv6.conf.default.disable_ipv6 = 1
+          vm.swappiness = 0
+          vm.overcommit_memory = 1
+          vm.panic_on_oom = 0
+          fs.inotify.max_user_instances = 8192
+          fs.inotify.max_user_watches = 1048576
+          fs.file-max = 52706963
+          fs.nr_open = 52706963
+          net.netfilter.nf_conntrack_max = 2310720
+        backup: yes
+
+    - name: Reboot if required
+      reboot:
+        msg: "Rebooting after Ubuntu 24 specific configurations"
+        pre_reboot_delay: 5
+        reboot_timeout: 300
+        post_reboot_delay: 15

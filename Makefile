@@ -1,12 +1,12 @@
-ANSIBLE_INV=inventory/pi-cluster.ini
+ANSIBLE_INV=inventory/cluster.ini
 ANSIBLE_DIR=ansible
 TERRAFORM_DIR=terraform
 
-.PHONY: setup-base setup-k3s plan apply destroy full
+.PHONY: setup-ubuntu setup-k3s setup-telegraf setup-influxdb plan apply destroy full
 
-setup-base:
-	@echo "Running base setup via Ansible..."
-	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/setup-base.yml
+setup-ubuntu:
+	@echo "Running Ubuntu 24 specific setup via Ansible..."
+	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/setup-ubuntu.yml
 
 setup-k3s:
 	@echo "Installing K3s on all nodes..."
@@ -15,6 +15,10 @@ setup-k3s:
 setup-telegraf:
 	@echo "Setting up Telegraf on all nodes..."
 	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/setup-telegraf.yml
+
+setup-influxdb:
+	@echo "Installing and configuring InfluxDB on master node..."
+	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/setup-influxdb.yml
 
 plan:
 	@echo "Running terraform plan..."
@@ -32,4 +36,4 @@ destroy:
 	fi
 	cd $(TERRAFORM_DIR) && terraform destroy -auto-approve
 
-full: setup-base setup-k3s apply apply
+full: setup-ubuntu setup-influxdb setup-k3s setup-telegraf apply

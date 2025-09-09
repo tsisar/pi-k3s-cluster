@@ -45,7 +45,7 @@ kube_context_name=pi-k3s-cluster
 ### Крок 1 — Підготовка системи
 
 ```bash
-ansible-playbook -i inventory/pi-cluster.ini playbooks/setup-base.yml
+ansible-playbook -i inventory/cluster.ini playbooks/setup-base.yml
 ```
 
 Цей плейбук:
@@ -59,7 +59,7 @@ ansible-playbook -i inventory/pi-cluster.ini playbooks/setup-base.yml
 ### Крок 2 — Встановлення K3s
 
 ```bash
-ansible-playbook -i inventory/pi-cluster.ini playbooks/setup-k3s.yml
+ansible-playbook -i inventory/cluster.ini playbooks/setup-k3s.yml
 ```
 
 Цей плейбук:

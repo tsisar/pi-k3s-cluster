@@ -1,0 +1,200 @@
+---
+- name: Install and configure InfluxDB on Ubuntu 24
+  hosts: master
+  become: true
+  when: ansible_distribution == "Ubuntu"
+
+  vars:
+    influxdb_admin_user: "admin"
+    influxdb_admin_password: "{{ vault_influxdb_admin_password | default('changeme123') }}"
+    influxdb_org: "k3s-cluster"
+    influxdb_bucket: "telegraf"
+    influxdb_retention: "30d"
+
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - wget
+          - gpg
+          - software-properties-common
+          - ca-certificates
+          - apt-transport-https
+        state: present
+
+    - name: Download InfluxData GPG key
+      get_url:
+        url: https://repos.influxdata.com/influxdata-archive_compat.key
+        dest: /tmp/influxdata-archive_compat.key
+        mode: '0644'
+
+    - name: Verify GPG key checksum
+      shell: |
+        echo '393e8779c89ac8d958f81f942f9ad7fb82a25e133faddaf92e15b16e6ac9ce4c influxdata-archive_compat.key' | sha256sum -c
+      args:
+        chdir: /tmp
+      register: gpg_checksum
+      failed_when: gpg_checksum.rc != 0
+
+    - name: Add InfluxData GPG key to trusted keys
+      shell: |
+        cat /tmp/influxdata-archive_compat.key | gpg --dearmor | tee /etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg > /dev/null
+      args:
+        creates: /etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg
+
+    - name: Add InfluxData APT repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg] https://repos.influxdata.com/debian stable main"
+        state: present
+        filename: influxdata
+
+    - name: Update package cache after adding repository
+      apt:
+        update_cache: true
+
+    - name: Install InfluxDB 2.x
+      apt:
+        name: influxdb2
+        state: present
+
+    - name: Start and enable InfluxDB service
+      systemd:
+        name: influxdb
+        state: started
+        enabled: true
+
+    - name: Wait for InfluxDB to be ready
+      uri:
+        url: "http://localhost:8086/health"
+        method: GET
+        status_code: 200
+      register: influxdb_health
+      until: influxdb_health.status == 200
+      retries: 30
+      delay: 2
+
+    - name: Check if InfluxDB is already initialized
+      stat:
+        path: /var/lib/influxdb2/influxd.bolt
+      register: influxdb_initialized
+
+    - name: Initialize InfluxDB (first time setup)
+      shell: |
+        influx setup \
+          --username "{{ influxdb_admin_user }}" \
+          --password "{{ influxdb_admin_password }}" \
+          --org "{{ influxdb_org }}" \
+          --bucket "{{ influxdb_bucket }}" \
+          --retention "{{ influxdb_retention }}" \
+          --force
+      when: not influxdb_initialized.stat.exists
+      register: influxdb_setup
+      changed_when: influxdb_setup.rc == 0
+
+    - name: Create Telegraf configuration token
+      shell: |
+        influx auth create \
+          --org "{{ influxdb_org }}" \
+          --all-access \
+          --description "Telegraf token for {{ inventory_hostname }}"
+      register: telegraf_token_result
+      when: not influxdb_initialized.stat.exists
+
+    - name: Extract Telegraf token
+      set_fact:
+        telegraf_token: "{{ telegraf_token_result.stdout_lines[0] | regex_search('token\\s+(\\S+)', '\\1') }}"
+      when: 
+        - not influxdb_initialized.stat.exists
+        - telegraf_token_result.stdout_lines is defined
+
+    - name: Create InfluxDB configuration directory
+      file:
+        path: /etc/influxdb2
+        state: directory
+        mode: '0755'
+
+    - name: Create InfluxDB configuration file
+      copy:
+        dest: /etc/influxdb2/config.yml
+        content: |
+          bolt-path: "/var/lib/influxdb2/influxd.bolt"
+          engine-path: "/var/lib/influxdb2/engine"
+          http-bind-address: ":8086"
+          log-level: "info"
+          store: "bolt"
+          reporting-disabled: true
+        mode: '0644'
+        backup: yes
+
+    - name: Configure InfluxDB to use custom config
+      lineinfile:
+        path: /lib/systemd/system/influxdb.service
+        regexp: '^ExecStart='
+        line: 'ExecStart=/usr/bin/influxd --config /etc/influxdb2/config.yml'
+        backup: yes
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: true
+
+    - name: Restart InfluxDB with new configuration
+      systemd:
+        name: influxdb
+        state: restarted
+
+    - name: Wait for InfluxDB to be ready after restart
+      uri:
+        url: "http://localhost:8086/health"
+        method: GET
+        status_code: 200
+      register: influxdb_health_restart
+      until: influxdb_health_restart.status == 200
+      retries: 30
+      delay: 2
+
+    - name: Allow InfluxDB port in UFW firewall
+      ufw:
+        rule: allow
+        port: '8086'
+        proto: tcp
+      when: ansible_ufw is defined
+
+    - name: Create InfluxDB status check script
+      copy:
+        dest: /usr/local/bin/check-influxdb.sh
+        content: |
+          #!/bin/bash
+          # InfluxDB health check script
+          
+          if curl -s http://localhost:8086/health > /dev/null; then
+              echo "InfluxDB is running and healthy"
+              exit 0
+          else
+              echo "InfluxDB is not responding"
+              exit 1
+          fi
+        mode: '0755'
+
+    - name: Display InfluxDB setup information
+      debug:
+        msg: |
+          InfluxDB has been successfully installed and configured!
+          
+          Access Information:
+          - Web UI: http://{{ ansible_host }}:8086
+          - Username: {{ influxdb_admin_user }}
+          - Password: {{ influxdb_admin_password }}
+          - Organization: {{ influxdb_org }}
+          - Bucket: {{ influxdb_bucket }}
+          - Retention: {{ influxdb_retention }}
+          
+          {% if telegraf_token is defined %}
+          Telegraf Token: {{ telegraf_token }}
+          {% endif %}
+          
+          To check InfluxDB status: /usr/local/bin/check-influxdb.sh

@@ -31,7 +31,6 @@ locals {
     hasura          = "hasura.${var.domain_external}"
     indexer         = "indexer.${var.domain_external}"
   }
-
 }
 
 data "external" "current_stage" {

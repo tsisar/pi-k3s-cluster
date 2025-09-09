@@ -1,14 +1,15 @@
 ---
-- name: Step 5 — Install and configure Telegraf monitoring
-  hosts: pi
+- name: Install and configure Telegraf monitoring on Ubuntu 24
+  hosts: ser
   become: true
+  when: ansible_distribution == "Ubuntu"
 
   vars:
-    influxdb_url: "http://192.168.88.30:8086"
-    influxdb_db: "mydb"
-    influxdb_user: ""
-    influxdb_password: ""
-    gpu_temp_command: "/usr/bin/vcgencmd measure_temp"
+    master_node: "{{ groups['master'][0] }}"
+    influxdb_url: "http://{{ hostvars[master_node]['ansible_host'] }}:8086"
+    influxdb_org: "k3s-cluster"
+    influxdb_bucket: "telegraf"
+    influxdb_token: "{{ hostvars[master_node]['telegraf_token'] | default('') }}"
 
   tasks:
 
@@ -18,6 +19,9 @@
           - wget
           - gpg
           - software-properties-common
+          - curl
+          - ca-certificates
+          - smartmontools
         state: present
         update_cache: true
 
@@ -58,11 +62,11 @@
             hostname = ""
             omit_hostname = false
 
-          [[outputs.influxdb]]
+          [[outputs.influxdb_v2]]
             urls = ["{{ influxdb_url }}"]
-            database = "{{ influxdb_db }}"
-            username = "{{ influxdb_user }}"
-            password = "{{ influxdb_password }}"
+            token = "{{ influxdb_token }}"
+            organization = "{{ influxdb_org }}"
+            bucket = "{{ influxdb_bucket }}"
 
           [[inputs.cpu]]
             percpu = true
@@ -78,7 +82,7 @@
           [[inputs.diskio]]
 
           [[inputs.net]]
-            interfaces = ["eth0", "wlan0"]
+            interfaces = ["eth0", "ens*", "enp*"]
 
           [[inputs.system]]
 
@@ -90,26 +94,140 @@
 
           [[inputs.kernel]]
 
+          [[inputs.systemd_units]]
+            unittype = "service"
+
+          [[inputs.logparser]]
+            files = ["/var/log/syslog"]
+            from_beginning = false
+            [inputs.logparser.grok]
+              patterns = ["%{SYSLOGTIMESTAMP:timestamp} %{IPORHOST:hostname} %{PROG:program}: %{GREEDYDATA:message}"]
+              custom_pattern_files = []
+              custom_patterns = []
+              timezone = "UTC"
+
           [[inputs.file]]
-            files = ["/sys/class/thermal/thermal_zone0/temp"]
+            files = ["/sys/class/thermal/thermal_zone*/temp"]
             name_override = "cpu_temperature"
             data_format = "value"
             data_type = "integer"
 
           [[inputs.exec]]
-            commands = ["{{ gpu_temp_command }}"]
-            name_override = "gpu_temperature"
-            data_format = "grok"
-            grok_patterns = ["temp=%{NUMBER:value:float}'C"]
+            commands = ["sensors -u | grep -E 'temp[0-9]+_input' | awk '{print $2}' | head -1"]
+            name_override = "cpu_temperature_sensors"
+            data_format = "value"
+            data_type = "float"
+            timeout = "5s"
+
+          [[inputs.smart]]
+            devices = ["/dev/sd*", "/dev/nvme*"]
+            attributes = true
+            exclude = ["/dev/sda"]
 
           [global_tags]
             host = "{{ inventory_hostname }}"
 
-    - name: Add telegraf user to video group
+    - name: Install lm-sensors for temperature monitoring
+      apt:
+        name: lm-sensors
+        state: present
+
+    - name: Detect and configure sensors
+      shell: sensors-detect --auto
+      ignore_errors: yes
+
+    - name: Add telegraf user to necessary groups
       user:
         name: telegraf
-        groups: video
+        groups: adm,systemd-journal,disk
         append: yes
+
+    - name: Ensure telegraf can read system logs
+      file:
+        path: /var/log/syslog
+        mode: '0644'
+        owner: syslog
+        group: adm
+
+    - name: Create telegraf log directory
+      file:
+        path: /var/log/telegraf
+        state: directory
+        owner: telegraf
+        group: telegraf
+        mode: '0755'
+
+    - name: Enable S.M.A.R.T monitoring for all drives
+      shell: |
+        for device in /dev/sd* /dev/nvme*; do
+          if [ -b "$device" ]; then
+            smartctl -s on "$device" || true
+          fi
+        done
+      ignore_errors: yes
+
+    - name: Create S.M.A.R.T monitoring script
+      copy:
+        dest: /usr/local/bin/check-smart.sh
+        content: |
+          #!/bin/bash
+          # S.M.A.R.T health check script
+          
+          failed_devices=()
+          
+          for device in /dev/sd* /dev/nvme*; do
+            if [ -b "$device" ]; then
+              if ! smartctl -H "$device" | grep -q "PASSED"; then
+                failed_devices+=("$device")
+              fi
+            fi
+          done
+          
+          if [ ${#failed_devices[@]} -eq 0 ]; then
+              echo "All S.M.A.R.T devices are healthy"
+              exit 0
+          else
+              echo "S.M.A.R.T failures detected on: ${failed_devices[*]}"
+              exit 1
+          fi
+        mode: '0755'
+
+    - name: Create systemd timer for S.M.A.R.T monitoring
+      copy:
+        dest: /etc/systemd/system/smart-monitor.service
+        content: |
+          [Unit]
+          Description=S.M.A.R.T Health Check
+          After=multi-user.target
+          
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/bin/check-smart.sh
+          User=root
+        mode: '0644'
+
+    - name: Create systemd timer unit
+      copy:
+        dest: /etc/systemd/system/smart-monitor.timer
+        content: |
+          [Unit]
+          Description=Run S.M.A.R.T health check daily
+          Requires=smart-monitor.service
+          
+          [Timer]
+          OnCalendar=daily
+          Persistent=true
+          
+          [Install]
+          WantedBy=timers.target
+        mode: '0644'
+
+    - name: Enable and start S.M.A.R.T monitoring timer
+      systemd:
+        name: smart-monitor.timer
+        enabled: true
+        state: started
+        daemon_reload: true
 
     - name: Restart telegraf
       systemd:
