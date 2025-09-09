@@ -9,7 +9,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: pavlo.tsisar@tattoo.courses
+    email: admin@example.com
     privateKeySecretRef:
       name: {{ .Release.Name }}-letsencrypt-private-key
     solvers:
