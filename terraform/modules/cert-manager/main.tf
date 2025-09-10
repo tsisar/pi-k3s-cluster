@@ -16,10 +16,12 @@ resource "helm_release" "cert_manager" {
   version    = var.app_version
   namespace  = kubernetes_namespace.cert_manager.metadata[0].name
 
-  set {
-    name  = "installCRDs"
-    value = "true"
-  }
+  set = [
+    {
+      name  = "installCRDs"
+      value = "true"
+    }
+  ]
 
   depends_on = [
     kubernetes_namespace.cert_manager

@@ -1,31 +1,27 @@
-variable "prometheus_host" {
-  description = "Prometheus host"
-  type        = string
-}
-
-variable "grafana_host" {
-  description = "Grafana host"
-  type        = string
-}
 
 locals {
   values_yaml_content = templatefile("${path.module}/values.yaml.tpl", {
-    grafana_password = random_password.grafana.result,
+    grafana_password = "prom-operator",
+    influxdb_host = var.influxdb_host,
+    influxdb_port = var.influxdb_port,
+    influxdb_org = var.influxdb_org,
+    influxdb_bucket = var.influxdb_bucket,
+    influxdb_token = var.influxdb_token,
   })
 }
 
-resource "random_password" "grafana" {
-  length  = 16
-  special = false
-}
+# resource "random_password" "grafana" {
+#   length  = 16
+#   special = false
+# }
 
-resource "vault_generic_secret" "grafana_password" {
-  path = "secret/grafana"
-
-  data_json = jsonencode({
-    password = random_password.grafana.result
-  })
-}
+# resource "vault_generic_secret" "grafana_password" {
+#   path = "secret/grafana"
+#
+#   data_json = jsonencode({
+#     password = random_password.grafana.result
+#   })
+# }
 
 resource "kubernetes_namespace" "monitoring" {
   metadata {
@@ -52,8 +48,7 @@ resource "kubernetes_config_map" "grafana_dashboards" {
 
   data = {
     "node-exporter-dashboard.json" = file("${path.module}/dashboards/node-exporter-dashboard.json")
-    "pvc-metrics-dashboard.json" = file("${path.module}/dashboards/pvc-metrics-dashboard.json")
-    "raspberry-pi-monitoring.json" = file("${path.module}/dashboards/raspberry-pi-monitoring.json")
+    "telegraf_linux_ready.json"    = file("${path.module}/dashboards/telegraf_linux_ready.json")
   }
 }
 

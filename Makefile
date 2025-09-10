@@ -33,7 +33,7 @@ plan:
 	cd $(TERRAFORM_DIR) && terraform plan
 
 apply:
-	@echo "Applying terraform configuration (stage=$$(jq -r .stage $(TERRAFORM_DIR)/scripts/stage.json))..."
+	@echo "Applying terraform configuration..."
 	cd $(TERRAFORM_DIR) && terraform apply -auto-approve
 
 destroy:
