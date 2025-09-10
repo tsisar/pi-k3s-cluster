@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 33,
+  "id": 2,
   "links": [],
   "panels": [
     {
@@ -106,8 +106,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "smartctl_device{job=\"smartctl-exporter\"}",
-          "legendFormat": "{{instance}}",
+          "expr": "smartctl_device{job=\"smartctl-exporter\",node_name=~\"$instance\"}",
+          "legendFormat": "{{node_name}}",
           "range": true,
           "refId": "A"
         }
@@ -181,8 +181,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "smartctl_device_smart_status{job=\"smartctl-exporter\"}",
-          "legendFormat": "{{instance}}",
+          "expr": "smartctl_device_smart_status{job=\"smartctl-exporter\",node_name=~\"$instance\"}",
+          "legendFormat": "{{node_name}}",
           "range": true,
           "refId": "A"
         }
@@ -283,8 +283,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "smartctl_device_temperature{job=\"smartctl-exporter\",temperature_type=\"current\"}",
-          "legendFormat": "{{instance}}",
+          "expr": "smartctl_device_temperature{job=\"smartctl-exporter\",temperature_type=\"current\",node_name=~\"$instance\"}",
+          "legendFormat": "{{node_name}}",
           "range": true,
           "refId": "A"
         }
@@ -377,8 +377,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "smartctl_device_power_on_seconds{job=\"smartctl-exporter\"} / 3600",
-          "legendFormat": "{{instance}}",
+          "expr": "smartctl_device_power_on_seconds{job=\"smartctl-exporter\",node_name=~\"$instance\"} / 3600",
+          "legendFormat": "{{node_name}}",
           "range": true,
           "refId": "A"
         }
@@ -479,8 +479,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "smartctl_device_attribute{job=\"smartctl-exporter\",attribute_name=\"Reallocated_Sector_Ct\",attribute_value_type=\"raw\"}",
-          "legendFormat": "Reallocated_Sector_Ct",
+          "expr": "smartctl_device_attribute{job=\"smartctl-exporter\",attribute_name=\"Reallocated_Sector_Ct\",attribute_value_type=\"raw\",node_name=~\"$instance\"}",
+          "legendFormat": "{{node_name}}",
           "range": true,
           "refId": "A"
         }
@@ -573,8 +573,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "smartctl_device_power_cycle_count{job=\"smartctl-exporter\"}",
-          "legendFormat": "{{instance}}",
+          "expr": "smartctl_device_power_cycle_count{job=\"smartctl-exporter\",node_name=~\"$instance\"}",
+          "legendFormat": "{{node_name}}",
           "range": true,
           "refId": "A"
         }
@@ -596,20 +596,24 @@
     "list": [
       {
         "current": {
-          "text": "All",
-          "value": "$__all"
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "definition": "label_values(smartctl_device{job=\"smartctl-exporter\"}, instance)",
+        "definition": "label_values(smartctl_device{job=\"smartctl-exporter\"}, node_name)",
         "includeAll": true,
-        "label": "Instance",
+        "label": "Node",
         "multi": true,
         "name": "instance",
         "options": [],
-        "query": "label_values(smartctl_device{job=\"smartctl-exporter\"}, instance)",
+        "query": "label_values(smartctl_device{job=\"smartctl-exporter\"}, node_name)",
         "refresh": 1,
         "regex": "",
         "type": "query"
@@ -623,13 +627,13 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "definition": "label_values(smartctl_device{job=\"smartctl-exporter\",instance=~\"$instance\"}, device)",
+        "definition": "label_values(smartctl_device{job=\"smartctl-exporter\",node_name=~\"$instance\"}, device)",
         "includeAll": true,
         "label": "Device",
         "multi": true,
         "name": "device",
         "options": [],
-        "query": "label_values(smartctl_device{job=\"smartctl-exporter\",instance=~\"$instance\"}, device)",
+        "query": "label_values(smartctl_device{job=\"smartctl-exporter\",node_name=~\"$instance\"}, device)",
         "refresh": 1,
         "regex": "",
         "type": "query"
@@ -644,5 +648,5 @@
   "timezone": "",
   "title": "S.M.A.R.T Disk Monitoring - smartctl-exporter (Fixed)",
   "uid": "smartctl-exporter-fixed",
-  "version": 2
+  "version": 1
 }
