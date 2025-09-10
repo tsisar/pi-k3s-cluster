@@ -49,6 +49,7 @@ resource "kubernetes_config_map" "grafana_dashboards" {
   data = {
     "node-exporter-dashboard.json" = file("${path.module}/dashboards/node-exporter-dashboard.json")
     "telegraf_linux_ready.json"    = file("${path.module}/dashboards/telegraf_linux_ready.json")
+    "smartctl_exporter_fixed.json" = file("${path.module}/dashboards/smartctl_exporter_fixed.json")
   }
 }
 
