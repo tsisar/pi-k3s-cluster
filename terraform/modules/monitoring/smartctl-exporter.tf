@@ -193,7 +193,7 @@ resource "kubernetes_manifest" "smartctl_exporter_servicemonitor" {
       name      = "smartctl-exporter"
       namespace = kubernetes_namespace.monitoring.metadata[0].name
       labels = {
-        release = "prometheus"
+        release = "kube-prometheus-stack"
       }
     }
     spec = {
@@ -212,6 +212,16 @@ resource "kubernetes_manifest" "smartctl_exporter_servicemonitor" {
           path          = "/metrics"
           interval      = "60s"
           scrapeTimeout = "10s"
+          relabelings = [
+            {
+              sourceLabels = ["__meta_kubernetes_pod_node_name"]
+              targetLabel  = "node_name"
+            },
+            {
+              sourceLabels = ["__meta_kubernetes_pod_host_ip"]
+              targetLabel  = "host_ip"
+            }
+          ]
         }
       ]
     }
