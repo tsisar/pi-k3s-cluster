@@ -1,0 +1,68 @@
+---
+- name: Import InfluxDB dashboards and templates
+  hosts: master
+  become: true
+
+  tasks:
+    - name: Check if running on Ubuntu
+      fail:
+        msg: "This playbook is designed for Ubuntu 24.04 only"
+      when: ansible_distribution != "Ubuntu" or ansible_distribution_version != "24.04"
+
+    - name: Download Linux System template
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/influxdata/community-templates/master/linux_system/linux_system.yml
+        dest: /tmp/linux_system_template.yml
+        mode: '0644'
+
+    - name: Import Linux System dashboard template
+      ansible.builtin.shell: |
+        influx apply --file /tmp/linux_system_template.yml --force yes
+      register: dashboard_import
+      changed_when: dashboard_import.rc == 0
+      failed_when: dashboard_import.rc != 0
+
+    - name: Restore telegraf bucket retention to 30 days
+      ansible.builtin.shell: |
+        influx bucket update --id 3dcfe843f9a42487 --retention 720h
+      register: bucket_update
+      changed_when: bucket_update.rc == 0
+      failed_when: bucket_update.rc != 0
+
+    - name: Verify dashboard import
+      ansible.builtin.shell: |
+        influx query 'import "influxdata/influxdb/v1" v1.measurementTagValues(bucket: "telegraf", measurement: "cpu", tag: "host")'
+      register: dashboard_verify
+      changed_when: false
+
+    - name: Display dashboard information
+      ansible.builtin.debug:
+        msg: |
+          Linux System Dashboard has been successfully imported!
+
+          Dashboard Information:
+          - Name: Linux System
+          - Description: A collection of useful visualizations for monitoring your Linux system
+          - Charts: 13 different monitoring charts
+          - Variables: bucket, linux_host
+
+          Access Information:
+          - Web UI: http://{{ ansible_host }}:8086
+          - Username: admin
+          - Password: changeme123
+          - Organization: k3s-cluster
+          - Dashboard: "Linux System"
+
+          Available hosts for monitoring:
+          {{ dashboard_verify.stdout_lines }}
+
+          The dashboard includes charts for:
+          - System Uptime
+          - CPU Usage
+          - Memory Usage
+          - Disk Usage
+          - Disk I/O
+          - Network Traffic
+          - System Load
+          - Processes
+          - Swap Usage

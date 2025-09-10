@@ -1,0 +1,26 @@
+---
+- name: Test SSH connection to all nodes
+  hosts: ser
+  gather_facts: false
+
+  tasks:
+    - name: Test connection with ping
+      ping:
+
+    - name: Display host information
+      debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          IP: {{ ansible_host }}
+          Hostname: {{ new_hostname }}
+          User: {{ ansible_user }}
+
+    - name: Check if Python is available
+      raw: python3 --version
+      register: python_version
+      changed_when: false
+
+    - name: Display Python version
+      debug:
+        msg: "Python version on {{ inventory_hostname }}: {{ python_version.stdout }}"
+

@@ -15,7 +15,7 @@ crash.log
 .idea/
 *.iml
 *.iws
-*.ipr
+*.iprk
 
 # Ignore local temporary files that can be generated
 *.swp
