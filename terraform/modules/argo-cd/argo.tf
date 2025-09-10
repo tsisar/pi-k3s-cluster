@@ -3,21 +3,21 @@ locals {
     server_insecure = var.server_insecure,
     host            = "https://${var.host}",
   })
-  hashed_password = bcrypt(random_password.argo_cd.result)
+  hashed_password = bcrypt("admin")
 }
 
-resource "random_password" "argo_cd" {
-  length  = 12
-  special = true
-}
-
-resource "vault_generic_secret" "argo_cd" {
-  path = "secret/argo_cd"
-
-  data_json = jsonencode({
-    password = random_password.argo_cd.result
-  })
-}
+# resource "random_password" "argo_cd" {
+#   length  = 12
+#   special = true
+# }
+#
+# resource "vault_generic_secret" "argo_cd" {
+#   path = "secret/argo_cd"
+#
+#   data_json = jsonencode({
+#     password = random_password.argo_cd.result
+#   })
+# }
 
 # Create argo-cd namespace
 resource "kubernetes_namespace" "argo_cd" {
@@ -31,26 +31,25 @@ resource "helm_release" "argo_cd" {
   name       = "argocd"
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argo-cd"
-  namespace = "argocd"
+  namespace  = "argocd"
 
   # Use dynamically generated values.yaml file
   values = [local.values_yaml_content]
 
-  set_sensitive {
-    name  = "configs.secret.argocdServerAdminPassword"
-    value = local.hashed_password
-  }
-
-  set_sensitive {
-    name  = "configs.secret.extra.dexGitHubClientID"
-    value = var.dex_git_hub_client_id
-  }
-
-  set_sensitive {
-    name  = "configs.secret.extra.dexGitHubClientSecret"
-    value = var.dex_git_hub_client_secret
-  }
-
+  set_sensitive = [
+    {
+      name  = "configs.secret.argocdServerAdminPassword"
+      value = local.hashed_password
+    },
+    {
+      name  = "configs.secret.extra.dexGitHubClientID"
+      value = var.dex_git_hub_client_id
+    },
+    {
+      name  = "configs.secret.extra.dexGitHubClientSecret"
+      value = var.dex_git_hub_client_secret
+    }
+  ]
   lifecycle {
     ignore_changes = [set_sensitive]
   }
@@ -116,7 +115,7 @@ resource "kubernetes_ingress_v1" "argo_cd" {
     }
 
     tls {
-      hosts = [var.host]
+      hosts       = [var.host]
       secret_name = "argocd-tls"
     }
   }
@@ -161,10 +160,10 @@ output "host" {
 }
 
 output "username" {
-  value     = "admin"
+  value = "admin"
 }
 
 output "password" {
-  value     = random_password.argo_cd.result
+  value     = "admin"
   sensitive = true
 }

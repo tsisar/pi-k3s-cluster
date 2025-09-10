@@ -1,21 +1,12 @@
-locals {
-  current_stage = tonumber(data.external.current_stage.result.stage)
-}
-
-data "external" "current_stage" {
-  program = ["bash", "${path.module}/scripts/get_stage.sh"]
-}
-
 # ================= Mikrotik ==================
 
-resource "mikrotik_dns_record" "record" {
+resource "routeros_ip_dns_record" "name_record" {
   for_each = var.hosts
 
   name    = each.value
   address = "192.168.88.30"
-  ttl     = 300
+  type    = "A"
 }
-
 # ================= Stage-1 ====================
 
 module "ingress_nginx" {
@@ -28,45 +19,6 @@ module "cert_manager" {
   for_each = var.enabled_modules.cert_manager ? { "enabled" = {} } : {}
 }
 
-module "redis" {
-  source         = "./modules/redis"
-  for_each       = var.enabled_modules.redis ? { "enabled" = {} } : {}
-  redis_host     = var.hosts.redis
-  commander_host = var.hosts.redis_commander
-
-  depends_on = [
-    mikrotik_dns_record.record
-  ]
-}
-
-module "vault" {
-  source        = "./modules/vault-bootstrap"
-  for_each      = var.enabled_modules.vault ? { "enabled" = {} } : {}
-  host_local    = var.hosts.vault_local
-  host_external = var.hosts.vault_external
-
-  depends_on = [
-    mikrotik_dns_record.record
-  ]
-}
-
-resource "null_resource" "bump_stage_to_2" {
-  provisioner "local-exec" {
-    command = "jq '.stage = \"2\"' ${path.module}/scripts/stage.json > ${path.module}/scripts/stage.tmp && mv ${path.module}/scripts/stage.tmp ${path.module}/scripts/stage.json"
-  }
-
-  triggers = {
-    always_run = timestamp()
-  }
-
-  depends_on = [
-    module.ingress_nginx,
-    module.cert_manager,
-    module.redis,
-    module.vault
-  ]
-}
-
 # ================= Stage-2 ====================
 
 module "cluster_issuer" {
@@ -75,28 +27,24 @@ module "cluster_issuer" {
   email    = var.email
 }
 
-module "vault_config" {
-  source        = "./modules/vault-config"
-  for_each      = var.enabled_modules.vault_config ? { "enabled" = {} } : {}
-  namespace     = module.vault["enabled"].namespace
-  host_local    = var.hosts.vault_local
-  host_external = var.hosts.vault_external
-
-  depends_on = [
-    module.cluster_issuer,
-    module.vault
-  ]
-}
-
 module "monitoring" {
   source          = "./modules/monitoring"
   for_each        = var.enabled_modules.monitoring ? { "enabled" = {} } : {}
   grafana_host    = var.hosts.grafana
   prometheus_host = var.hosts.prometheus
-
-  depends_on = [
-    module.vault_config
-  ]
+  
+  # InfluxDB configuration
+  influxdb_host     = "192.168.88.30"
+  influxdb_port     = 8086
+  influxdb_org      = "k3s-cluster"
+  influxdb_bucket   = "telegraf"
+  influxdb_token    = var.influxdb_token
+  
+  # Smartctl Exporter configuration
+  smartctl_exporter_enabled   = true
+  smartctl_exporter_image     = "prometheuscommunity/smartctl-exporter:latest"
+  smartctl_exporter_interval  = "60s"
+  smartctl_exporter_rescan    = "10m"
 }
 
 module "argo_cd" {
@@ -106,45 +54,4 @@ module "argo_cd" {
   dex_git_hub_client_secret = var.dex_git_hub_client_secret
   host                      = var.hosts.argo
   email                     = var.email
-
-  depends_on = [
-    module.vault_config
-  ]
-}
-
-# Setting up Deploy Key in GitHub repository and connecting it to ArgoCD
-module "infra" {
-  source   = "./modules/infra-repository"
-  for_each = var.enabled_modules.repository_deploy_key ? { "enabled" = {} } : {}
-}
-
-# Demo Module
-module "demo" {
-  source     = "./modules/demo"
-  for_each   = var.enabled_modules.demo ? { "enabled" = {} } : {}
-  host       = var.hosts.demo
-  repository = module.infra["enabled"].repository
-
-  depends_on = [
-    module.argo_cd,
-    module.infra
-  ]
-}
-
-# Indexer Module
-module "indexer" {
-  source          = "./modules/indexer"
-  for_each        = var.enabled_modules.indexer ? { "enabled" = {} } : {}
-  name            = "starknet"
-  namespace       = "indexer"
-  repository      = "https://github.com/tsisar/starknet-indexer.git"
-  branch          = "dev"
-  rpc_endpoint    = var.rpc_endpoint
-  rpc_ws_endpoint = var.rpc_ws_endpoint
-  host            = var.hosts.indexer
-
-  depends_on = [
-    module.argo_cd,
-    module.infra
-  ]
 }

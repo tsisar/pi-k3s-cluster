@@ -41,3 +41,20 @@ grafana:
             path: /var/lib/grafana/dashboards/default
   dashboardsConfigMaps:
     default: "grafana-dashboards"
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: InfluxDB
+          type: influxdb
+          access: proxy
+          url: http://${influxdb_host}:${influxdb_port}
+          secureJsonData:
+            token: ${influxdb_token}
+          jsonData:
+            version: Flux
+            organization: ${influxdb_org}
+            defaultBucket: ${influxdb_bucket}
+            tlsSkipVerify: true
+          isDefault: false
+          editable: true
