@@ -2,23 +2,31 @@ ANSIBLE_INV=inventory/cluster.ini
 ANSIBLE_DIR=ansible
 TERRAFORM_DIR=terraform
 
-.PHONY: setup-ubuntu setup-k3s setup-telegraf setup-influxdb plan apply destroy full
+.PHONY: setup-ubuntu setup-influxdb setup-telegraf setup-dashboards setup-k3s test-connection plan apply destroy full
 
 setup-ubuntu:
-	@echo "Running Ubuntu 24 specific setup via Ansible..."
+	@echo "Step 1: Running Ubuntu 24 specific setup via Ansible..."
 	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/setup-ubuntu.yml
 
-setup-k3s:
-	@echo "Installing K3s on all nodes..."
-	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/setup-k3s.yml
+setup-influxdb:
+	@echo "Step 2: Installing and configuring InfluxDB on master node..."
+	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/setup-influxdb.yml
 
 setup-telegraf:
-	@echo "Setting up Telegraf on all nodes..."
+	@echo "Step 3: Setting up Telegraf monitoring on all nodes..."
 	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/setup-telegraf.yml
 
-setup-influxdb:
-	@echo "Installing and configuring InfluxDB on master node..."
-	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/setup-influxdb.yml
+setup-dashboards:
+	@echo "Step 4: Importing InfluxDB dashboards and templates..."
+	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/setup-dashboards.yml
+
+setup-k3s:
+	@echo "Step 5: Installing K3s cluster on all nodes..."
+	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/setup-k3s.yml
+
+test-connection:
+	@echo "Testing SSH connection to all nodes..."
+	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/test-connection.yml
 
 plan:
 	@echo "Running terraform plan..."
@@ -36,4 +44,4 @@ destroy:
 	fi
 	cd $(TERRAFORM_DIR) && terraform destroy -auto-approve
 
-full: setup-ubuntu setup-influxdb setup-k3s setup-telegraf apply
+full: setup-ubuntu setup-influxdb setup-telegraf setup-dashboards setup-k3s apply

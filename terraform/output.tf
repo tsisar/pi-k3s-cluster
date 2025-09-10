@@ -1,5 +1,5 @@
 output "hosts" {
-  value = local.hosts
+  value = var.hosts
 }
 
 output "vault" {

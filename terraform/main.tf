@@ -1,36 +1,5 @@
 locals {
   current_stage = tonumber(data.external.current_stage.result.stage)
-
-  enabled_modules = {
-    ingress_nginx         = local.current_stage >= 1
-    cert_manager          = local.current_stage >= 1
-    redis                 = local.current_stage >= 1
-    vault                 = local.current_stage >= 1
-    cluster_issuer        = local.current_stage >= 2
-    vault_config          = local.current_stage >= 2
-    monitoring            = local.current_stage >= 2
-    argo_cd               = local.current_stage >= 2
-    repository_deploy_key = local.current_stage >= 2
-    demo                  = local.current_stage >= 2
-    indexer               = local.current_stage >= 2
-    proxy                 = local.current_stage >= 2
-  }
-
-  hosts = {
-    vault_local     = "vault.${var.domain_local}"
-    vault_external  = "vault.${var.domain_external}"
-    redis           = "redis.${var.domain_local}"
-    redis_commander = "redis-commander.${var.domain_local}"
-    prometheus      = "prometheus.${var.domain_local}"
-    grafana         = "grafana.${var.domain_local}"
-    argo            = "argo.${var.domain_external}"
-    vault_local     = "vault.${var.domain_local}"
-    vault_external  = "vault.${var.domain_external}"
-    demo            = "demo.${var.domain_external}"
-    postgres        = "postgres.${var.domain_local}"
-    hasura          = "hasura.${var.domain_external}"
-    indexer         = "indexer.${var.domain_external}"
-  }
 }
 
 data "external" "current_stage" {
@@ -40,7 +9,7 @@ data "external" "current_stage" {
 # ================= Mikrotik ==================
 
 resource "mikrotik_dns_record" "record" {
-  for_each = local.hosts
+  for_each = var.hosts
 
   name    = each.value
   address = "192.168.88.30"
@@ -51,19 +20,19 @@ resource "mikrotik_dns_record" "record" {
 
 module "ingress_nginx" {
   source   = "./modules/ingress-nginx"
-  for_each = local.enabled_modules.ingress_nginx ? { "enabled" = {} } : {}
+  for_each = var.enabled_modules.ingress_nginx ? { "enabled" = {} } : {}
 }
 
 module "cert_manager" {
   source   = "./modules/cert-manager"
-  for_each = local.enabled_modules.cert_manager ? { "enabled" = {} } : {}
+  for_each = var.enabled_modules.cert_manager ? { "enabled" = {} } : {}
 }
 
 module "redis" {
   source         = "./modules/redis"
-  for_each       = local.enabled_modules.redis ? { "enabled" = {} } : {}
-  redis_host     = local.hosts.redis
-  commander_host = local.hosts.redis_commander
+  for_each       = var.enabled_modules.redis ? { "enabled" = {} } : {}
+  redis_host     = var.hosts.redis
+  commander_host = var.hosts.redis_commander
 
   depends_on = [
     mikrotik_dns_record.record
@@ -72,9 +41,9 @@ module "redis" {
 
 module "vault" {
   source        = "./modules/vault-bootstrap"
-  for_each      = local.enabled_modules.vault ? { "enabled" = {} } : {}
-  host_local    = local.hosts.vault_local
-  host_external = local.hosts.vault_external
+  for_each      = var.enabled_modules.vault ? { "enabled" = {} } : {}
+  host_local    = var.hosts.vault_local
+  host_external = var.hosts.vault_external
 
   depends_on = [
     mikrotik_dns_record.record
@@ -102,16 +71,16 @@ resource "null_resource" "bump_stage_to_2" {
 
 module "cluster_issuer" {
   source   = "./modules/cluster-issuer"
-  for_each = local.enabled_modules.cluster_issuer ? { "enabled" = {} } : {}
+  for_each = var.enabled_modules.cluster_issuer ? { "enabled" = {} } : {}
   email    = var.email
 }
 
 module "vault_config" {
   source        = "./modules/vault-config"
-  for_each      = local.enabled_modules.vault_config ? { "enabled" = {} } : {}
+  for_each      = var.enabled_modules.vault_config ? { "enabled" = {} } : {}
   namespace     = module.vault["enabled"].namespace
-  host_local    = local.hosts.vault_local
-  host_external = local.hosts.vault_external
+  host_local    = var.hosts.vault_local
+  host_external = var.hosts.vault_external
 
   depends_on = [
     module.cluster_issuer,
@@ -121,9 +90,9 @@ module "vault_config" {
 
 module "monitoring" {
   source          = "./modules/monitoring"
-  for_each        = local.enabled_modules.monitoring ? { "enabled" = {} } : {}
-  grafana_host    = local.hosts.grafana
-  prometheus_host = local.hosts.prometheus
+  for_each        = var.enabled_modules.monitoring ? { "enabled" = {} } : {}
+  grafana_host    = var.hosts.grafana
+  prometheus_host = var.hosts.prometheus
 
   depends_on = [
     module.vault_config
@@ -132,10 +101,10 @@ module "monitoring" {
 
 module "argo_cd" {
   source                    = "./modules/argo-cd"
-  for_each                  = local.enabled_modules.argo_cd ? { "enabled" = {} } : {}
+  for_each                  = var.enabled_modules.argo_cd ? { "enabled" = {} } : {}
   dex_git_hub_client_id     = var.dex_git_hub_client_id
   dex_git_hub_client_secret = var.dex_git_hub_client_secret
-  host                      = local.hosts.argo
+  host                      = var.hosts.argo
   email                     = var.email
 
   depends_on = [
@@ -146,14 +115,14 @@ module "argo_cd" {
 # Setting up Deploy Key in GitHub repository and connecting it to ArgoCD
 module "infra" {
   source   = "./modules/infra-repository"
-  for_each = local.enabled_modules.repository_deploy_key ? { "enabled" = {} } : {}
+  for_each = var.enabled_modules.repository_deploy_key ? { "enabled" = {} } : {}
 }
 
 # Demo Module
 module "demo" {
   source     = "./modules/demo"
-  for_each   = local.enabled_modules.demo ? { "enabled" = {} } : {}
-  host       = local.hosts.demo
+  for_each   = var.enabled_modules.demo ? { "enabled" = {} } : {}
+  host       = var.hosts.demo
   repository = module.infra["enabled"].repository
 
   depends_on = [
@@ -165,14 +134,14 @@ module "demo" {
 # Indexer Module
 module "indexer" {
   source          = "./modules/indexer"
-  for_each        = local.enabled_modules.indexer ? { "enabled" = {} } : {}
+  for_each        = var.enabled_modules.indexer ? { "enabled" = {} } : {}
   name            = "starknet"
   namespace       = "indexer"
   repository      = "https://github.com/tsisar/starknet-indexer.git"
   branch          = "dev"
   rpc_endpoint    = var.rpc_endpoint
   rpc_ws_endpoint = var.rpc_ws_endpoint
-  host            = local.hosts.indexer
+  host            = var.hosts.indexer
 
   depends_on = [
     module.argo_cd,
