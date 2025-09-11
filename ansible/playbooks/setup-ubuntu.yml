@@ -45,6 +45,7 @@
               [Resolve]
               DNS=192.168.88.1
               FallbackDNS=8.8.8.8 1.1.1.1
+              Domains=k3s-rakia.local
               DNSSEC=no
               DNSOverTLS=no
               MulticastDNS=no
