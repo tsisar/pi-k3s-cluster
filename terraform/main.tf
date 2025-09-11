@@ -55,3 +55,10 @@ module "argo_cd" {
   host                      = var.hosts.argo
   email                     = var.email
 }
+
+module "keycloak" {
+  source    = "./modules/keycloak"
+  for_each  = var.enabled_modules.keycloak ? { "enabled" = {} } : {}
+  host      = var.hosts.keycloak
+  namespace = "keycloak"
+}

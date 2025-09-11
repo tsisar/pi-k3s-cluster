@@ -1,36 +1,12 @@
-terraform {
-  required_providers {
-    kubernetes = {
-      source = "hashicorp/kubernetes"
-    }
-    helm = {
-      source = "hashicorp/helm"
-      version = ">= 3.0.2"
-    }
-    routeros = {
-      source = "terraform-routeros/routeros"
-      version = "1.86.3"
-    }
-    tls = {
-      source  = "hashicorp/tls"
-      version = ">= 4.0.6"
-    }
-    argocd = {
-      source = "argoproj-labs/argocd"
-      version = ">= 7.8.2"
-    }
-  }
-}
-
 provider "kubernetes" {
   config_path    = "~/.kube/config"
-  config_context = "k3s-cluster"
+  config_context = "local-k3s"
 }
 
 provider "helm" {
   kubernetes = {
     config_path    = "~/.kube/config"
-    config_context = "k3s-cluster"
+    config_context = "local-k3s"
   }
 }
 
