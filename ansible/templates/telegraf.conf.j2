@@ -1,0 +1,72 @@
+[agent]
+  interval = "10s"
+  round_interval = true
+  metric_batch_size = 1000
+  metric_buffer_limit = 10000
+  collection_jitter = "0s"
+  flush_interval = "10s"
+  flush_jitter = "0s"
+  precision = ""
+  hostname = ""
+  omit_hostname = false
+
+[[outputs.influxdb_v2]]
+  urls = ["{{ influxdb_url }}"]
+  token = "{{ influxdb_token }}"
+  organization = "{{ influxdb_org }}"
+  bucket = "{{ influxdb_bucket }}"
+
+[[inputs.cpu]]
+  percpu = true
+  totalcpu = true
+  collect_cpu_time = false
+  report_active = false
+
+[[inputs.mem]]
+
+[[inputs.disk]]
+  ignore_fs = ["tmpfs", "devtmpfs", "devfs"]
+
+[[inputs.diskio]]
+
+[[inputs.net]]
+  interfaces = ["eth0", "ens*", "enp*"]
+
+[[inputs.system]]
+
+[[inputs.swap]]
+
+[[inputs.netstat]]
+
+[[inputs.processes]]
+
+[[inputs.kernel]]
+
+[[inputs.systemd_units]]
+  unittype = "service"
+
+[[inputs.tail]]
+  files = ["/var/log/syslog"]
+  from_beginning = false
+  data_format = "grok"
+  grok_patterns = ["%{SYSLOGTIMESTAMP:timestamp} %{IPORHOST:hostname} %{PROG:program}: %{GREEDYDATA:message}"]
+
+[[inputs.file]]
+  files = ["/sys/class/thermal/thermal_zone*/temp"]
+  name_override = "cpu_temperature"
+  data_format = "value"
+  data_type = "integer"
+
+[[inputs.exec]]
+  commands = ["sensors -u | grep -E 'temp[0-9]+_input' | awk '{print $2}' | head -1"]
+  name_override = "cpu_temperature_sensors"
+  data_format = "value"
+  data_type = "float"
+  timeout = "5s"
+
+[[inputs.smart]]
+  devices = ["/dev/sd*", "/dev/nvme*"]
+  attributes = true
+
+[global_tags]
+  host = "{{ hostname }}"

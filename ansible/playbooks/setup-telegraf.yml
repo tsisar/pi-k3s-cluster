@@ -8,13 +8,41 @@
     influxdb_url: "http://{{ hostvars[master_node]['ansible_host'] }}:8086"
     influxdb_org: "k3s-cluster"
     influxdb_bucket: "telegraf"
-    influxdb_token: "{{ hostvars[master_node]['telegraf_token'] | default('') }}"
 
   tasks:
     - name: Check if running on Ubuntu
       fail:
         msg: "This playbook is designed for Ubuntu 24.04 only"
       when: ansible_distribution != "Ubuntu" or ansible_distribution_version != "24.04"
+
+    - name: Get existing Telegraf token for this host
+      shell: |
+        influx auth list --json | jq -r '.[] | select(.description | contains("{{ inventory_hostname }}")) | .token'
+      register: existing_token
+      delegate_to: "{{ master_node }}"
+      failed_when: false
+
+    - name: Create new Telegraf token if none exists
+      shell: |
+        influx auth create \
+          --org "{{ influxdb_org }}" \
+          --all-access \
+          --description "Telegraf token for {{ inventory_hostname }}"
+      register: new_token_result
+      delegate_to: "{{ master_node }}"
+      when: existing_token.stdout == ""
+
+    - name: Extract token from new token creation
+      set_fact:
+        telegraf_token: "{{ new_token_result.stdout_lines[0] | regex_search('token\\s+(\\S+)', '\\1') }}"
+      when: 
+        - existing_token.stdout == ""
+        - new_token_result.stdout_lines is defined
+
+    - name: Use existing token
+      set_fact:
+        telegraf_token: "{{ existing_token.stdout }}"
+      when: existing_token.stdout != ""
 
     - name: Install dependencies
       apt:
@@ -67,7 +95,7 @@
 
           [[outputs.influxdb_v2]]
             urls = ["{{ influxdb_url }}"]
-            token = "{{ influxdb_token }}"
+            token = '{{ telegraf_token }}'
             organization = "{{ influxdb_org }}"
             bucket = "{{ influxdb_bucket }}"
 
@@ -105,9 +133,6 @@
             from_beginning = false
             data_format = "grok"
             grok_patterns = ["%{SYSLOGTIMESTAMP:timestamp} %{IPORHOST:hostname} %{PROG:program}: %{GREEDYDATA:message}"]
-            grok_custom_pattern_files = []
-            grok_custom_patterns = []
-            grok_timezone = "UTC"
 
           [[inputs.file]]
             files = ["/sys/class/thermal/thermal_zone*/temp"]
