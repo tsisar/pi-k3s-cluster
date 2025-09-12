@@ -1,0 +1,82 @@
+---
+- name: Copy cluster configuration to local machine
+  hosts: master
+  become: false
+  gather_facts: false
+
+  vars:
+    kube_context_name: "local-k3s"
+    local_kube_dir: "{{ lookup('env','HOME') }}/.kube"
+    local_kubeconfig: "{{ local_kube_dir }}/config"
+
+  tasks:
+    - name: Fetch kubeconfig from master node
+      fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: /tmp/kubeconfig-{{ inventory_hostname }}
+        flat: true
+
+    - name: Replace 127.0.0.1 with actual IP in kubeconfig
+      replace:
+        path: /tmp/kubeconfig-{{ inventory_hostname }}
+        regexp: '127\.0\.0\.1'
+        replace: '{{ hostvars[inventory_hostname].ansible_host }}'
+      delegate_to: localhost
+
+    - name: Rename 'default' context/cluster/user to "{{ kube_context_name }}"
+      replace:
+        path: /tmp/kubeconfig-{{ inventory_hostname }}
+        regexp: '\b(default)\b'
+        replace: '{{ kube_context_name }}'
+      delegate_to: localhost
+
+    - name: Ensure ~/.kube directory exists
+      file:
+        path: "{{ local_kube_dir }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+
+    - name: Ensure ~/.kube/config exists if missing
+      file:
+        path: "{{ local_kubeconfig }}"
+        state: touch
+        mode: '0600'
+      delegate_to: localhost
+
+    - name: Backup existing kubeconfig
+      copy:
+        src: "{{ local_kubeconfig }}"
+        dest: "{{ local_kubeconfig }}.bak.{{ ansible_date_time.epoch }}"
+      ignore_errors: true
+      delegate_to: localhost
+
+    - name: Merge new kubeconfig with existing config
+      shell: |
+        KUBECONFIG=/tmp/kubeconfig-{{ inventory_hostname }}:{{ local_kubeconfig }} \
+        kubectl config view --flatten > /tmp/merged_kubeconfig && \
+        mv /tmp/merged_kubeconfig {{ local_kubeconfig }}
+      args:
+        executable: /bin/bash
+      delegate_to: localhost
+
+    - name: Set correct permissions on kubeconfig
+      file:
+        path: "{{ local_kubeconfig }}"
+        mode: '0600'
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+      delegate_to: localhost
+
+    - name: Clean up temporary kubeconfig file
+      file:
+        path: /tmp/kubeconfig-{{ inventory_hostname }}
+        state: absent
+      delegate_to: localhost
+
+    - name: Display kubeconfig location
+      debug:
+        msg: |
+          Kubeconfig has been copied to: {{ local_kubeconfig }}
+          Context name: {{ kube_context_name }}
+          You can now use: kubectl --context={{ kube_context_name }} get nodes

@@ -2,7 +2,7 @@ ANSIBLE_INV=inventory/cluster.ini
 ANSIBLE_DIR=ansible
 TERRAFORM_DIR=terraform
 
-.PHONY: setup-ubuntu setup-influxdb setup-telegraf setup-dashboards setup-k3s test-connection plan apply destroy full
+.PHONY: setup-ubuntu setup-influxdb setup-telegraf setup-dashboards setup-k3s test-connection copy-config copy-secrets setup-cluster-access cluster-status upgrade-ubuntu upgrade-ubuntu-safe upgrade-security plan apply destroy full
 
 setup-ubuntu:
 	@echo "Step 1: Running Ubuntu 24 specific setup via Ansible..."
@@ -28,6 +28,37 @@ test-connection:
 	@echo "Testing SSH connection to all nodes..."
 	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/test-connection.yml
 
+# Cluster configuration management
+copy-config:
+	@echo "Copying cluster kubeconfig to local machine..."
+	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/copy-cluster-config.yml
+
+copy-secrets:
+	@echo "Copying cluster secrets and certificates to local machine..."
+	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/copy-cluster-secrets.yml
+
+setup-cluster-access:
+	@echo "Setting up complete cluster access (config + secrets)..."
+	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/setup-cluster-access.yml
+
+cluster-status:
+	@echo "Checking cluster status..."
+	kubectl --context=local-k3s get nodes
+	kubectl --context=local-k3s get pods --all-namespaces
+
+# System upgrade management
+upgrade-ubuntu:
+	@echo "Upgrading Ubuntu system packages on all nodes..."
+	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/upgrade-ubuntu.yml
+
+upgrade-ubuntu-safe:
+	@echo "Performing safe Ubuntu upgrade with pre/post checks..."
+	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/upgrade-ubuntu-safe.yml
+
+upgrade-security:
+	@echo "Installing security updates only..."
+	cd $(ANSIBLE_DIR) && ansible-playbook -i $(ANSIBLE_INV) playbooks/upgrade-security.yml
+
 plan:
 	@echo "Running terraform plan..."
 	cd $(TERRAFORM_DIR) && terraform plan
@@ -44,4 +75,4 @@ destroy:
 	fi
 	cd $(TERRAFORM_DIR) && terraform destroy -auto-approve
 
-full: setup-ubuntu setup-influxdb setup-telegraf setup-dashboards setup-k3s apply
+full: setup-ubuntu setup-influxdb setup-telegraf setup-dashboards setup-k3s setup-cluster-access apply

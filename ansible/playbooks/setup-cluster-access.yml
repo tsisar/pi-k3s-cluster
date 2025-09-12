@@ -1,0 +1,44 @@
+---
+- name: Setup cluster access - copy configuration and secrets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    kube_context_name: "local-k3s"
+    local_kube_dir: "{{ lookup('env','HOME') }}/.kube"
+    local_kubeconfig: "{{ local_kube_dir }}/config"
+    local_secrets_dir: "{{ local_kube_dir }}/secrets"
+
+  tasks:
+    - name: Include cluster config copy tasks
+      include_tasks: copy-cluster-config.yml
+      vars:
+        kube_context_name: "{{ kube_context_name }}"
+        local_kube_dir: "{{ local_kube_dir }}"
+        local_kubeconfig: "{{ local_kubeconfig }}"
+
+    - name: Include cluster secrets copy tasks
+      include_tasks: copy-cluster-secrets.yml
+      vars:
+        local_secrets_dir: "{{ local_secrets_dir }}"
+
+    - name: Verify cluster access
+      command: kubectl --context={{ kube_context_name }} get nodes
+      register: cluster_nodes
+      changed_when: false
+
+    - name: Display cluster information
+      debug:
+        msg: |
+          Cluster access configured successfully!
+          
+          Context: {{ kube_context_name }}
+          Kubeconfig: {{ local_kubeconfig }}
+          Secrets: {{ local_secrets_dir }}
+          
+          Cluster nodes:
+          {{ cluster_nodes.stdout }}
+          
+          You can now use:
+          kubectl --context={{ kube_context_name }} get pods --all-namespaces

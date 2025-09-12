@@ -1,0 +1,213 @@
+---
+- name: Safe Ubuntu system upgrade with pre/post checks
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    upgrade_timeout: 1800
+    backup_enabled: true
+    service_checks:
+      - k3s
+      - docker
+      - containerd
+      - systemd-resolved
+      - chrony
+
+  pre_tasks:
+    - name: Ensure required collections are present
+      ansible.builtin.command: >
+        ansible-galaxy collection install
+        ansible.posix
+        community.general
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+  tasks:
+    - block:
+        - name: Display pre-upgrade system information
+          ansible.builtin.debug:
+            msg: |
+              Pre-upgrade system info for {{ inventory_hostname }}:
+              OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+              Kernel: {{ ansible_kernel }}
+              Uptime: {{ ansible_uptime_seconds // 3600 }} hours
+
+        # ---- Pre-upgrade checks ----
+        - name: Check disk space before upgrade
+          ansible.builtin.command: df -h /
+          register: disk_space_before
+          changed_when: false
+
+        - name: Display disk space before upgrade
+          ansible.builtin.debug:
+            msg: "Disk space before upgrade: {{ disk_space_before.stdout_lines[1] }}"
+
+        - name: Check running services before upgrade
+          ansible.builtin.systemd:
+            name: "{{ item }}"
+            state: started
+          register: services_before
+          loop: "{{ service_checks }}"
+          ignore_errors: true
+
+        - name: Create backup of important configs
+          ansible.builtin.copy:
+            src: "{{ item }}"
+            dest: "/tmp/backup-{{ inventory_hostname }}/{{ item | basename }}"
+            remote_src: true
+          loop:
+            - /etc/hosts
+            - /etc/hostname
+            - /etc/systemd/resolved.conf
+            - /etc/chrony/chrony.conf
+            - /etc/sysctl.d/99-kubernetes-cri.conf
+          when: backup_enabled
+          ignore_errors: true
+
+        - name: Create backup directory
+          ansible.builtin.file:
+            path: "/tmp/backup-{{ inventory_hostname }}"
+            state: directory
+            mode: '0755'
+          when: backup_enabled
+
+        # ---- Perform upgrade ----
+        - name: Update package lists
+          ansible.builtin.apt:
+            update_cache: true
+            cache_valid_time: 3600
+
+        - name: Check for available updates
+          ansible.builtin.command: apt list --upgradable
+          register: available_updates
+          changed_when: false
+
+        - name: Display available updates
+          ansible.builtin.debug:
+            msg: |
+              Available updates for {{ inventory_hostname }}:
+              {{ available_updates.stdout_lines[1:] | join('\n') }}
+
+        - name: Upgrade packages safely
+          ansible.builtin.apt:
+            upgrade: dist
+            autoremove: true
+            autoclean: true
+            dpkg_options: 'force-confold,force-confdef'
+          register: upgrade_result
+          async: "{{ upgrade_timeout }}"
+          poll: 10
+
+        - name: Wait for upgrade to complete
+          ansible.builtin.async_status:
+            jid: "{{ upgrade_result.ansible_job_id }}"
+          register: upgrade_job_result
+          until: upgrade_job_result.finished
+          retries: "{{ upgrade_timeout // 10 }}"
+          delay: 10
+
+        - name: Check upgrade result
+          ansible.builtin.fail:
+            msg: "Package upgrade failed or timed out"
+          when: upgrade_job_result.failed
+
+        # ---- Post-upgrade checks ----
+        - name: Check disk space after upgrade
+          ansible.builtin.command: df -h /
+          register: disk_space_after
+          changed_when: false
+
+        - name: Display disk space after upgrade
+          ansible.builtin.debug:
+            msg: "Disk space after upgrade: {{ disk_space_after.stdout_lines[1] }}"
+
+        - name: Check if reboot is required
+          ansible.builtin.stat:
+            path: /var/run/reboot-required
+          register: reboot_check
+
+        - name: Display reboot requirement
+          ansible.builtin.debug:
+            msg: |
+              Reboot required: {{ reboot_check.stat.exists }}
+              {% if reboot_check.stat.exists %}
+              Reboot reason: {{ ansible.builtin.slurp(src='/var/run/reboot-required.pkgs', errors='ignore').content | b64decode | default('Unknown') }}
+              {% endif %}
+
+        # ---- Clean up ----
+        - name: Clean package cache
+          ansible.builtin.apt:
+            autoclean: true
+            autoremove: true
+
+        - name: Clean old kernels (keep last 2)
+          ansible.builtin.shell: |
+            dpkg -l linux-image-* | awk '/^ii/{print $2}' | grep -v $(uname -r) | head -n -2 | xargs -r apt-get purge -y
+          args:
+            executable: /bin/bash
+          ignore_errors: true
+
+        # ---- Conditional reboot ----
+        - name: Reboot system if required
+          ansible.builtin.reboot:
+            msg: "Rebooting after safe package upgrade"
+            pre_reboot_delay: 15
+            post_reboot_delay: 30
+            reboot_timeout: 300
+          when: reboot_check.stat.exists
+
+        - name: Wait for system to come back online
+          ansible.builtin.wait_for_connection:
+            timeout: 300
+          when: reboot_check.stat.exists
+
+        # ---- Post-reboot verification ----
+        - name: Verify system is running after upgrade
+          ansible.builtin.setup:
+            gather_subset: '!all'
+            filter: ansible_distribution*
+
+        - name: Check critical services after upgrade
+          ansible.builtin.systemd:
+            name: "{{ item }}"
+            state: started
+          register: services_after
+          loop: "{{ service_checks }}"
+          ignore_errors: true
+
+        - name: Display service status after upgrade
+          ansible.builtin.debug:
+            msg: |
+              Service status after upgrade:
+              {% for service in services_after.results %}
+              {{ service.item }}: {{ 'Running' if service.state == 'started' else 'Stopped/Failed' }}
+              {% endfor %}
+
+        - name: Display final system information
+          ansible.builtin.debug:
+            msg: |
+              Safe upgrade completed successfully on {{ inventory_hostname }}
+              Final OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+              Final Kernel: {{ ansible_kernel }}
+              Uptime: {{ ansible_uptime_seconds // 3600 }} hours
+
+      when:
+        - ansible_facts['os_family'] == "Debian"
+        - ansible_facts['distribution'] == "Ubuntu"
+
+    - name: Skip upgrade for non-Ubuntu systems
+      ansible.builtin.debug:
+        msg: "Skipping upgrade for {{ ansible_distribution }} {{ ansible_distribution_version }} (not Ubuntu)"
+      when: ansible_facts['distribution'] != "Ubuntu"
+
+  post_tasks:
+    - name: Display upgrade summary
+      ansible.builtin.debug:
+        msg: |
+          Safe upgrade process completed for {{ inventory_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Kernel: {{ ansible_kernel }}
+          Backup created: {{ backup_enabled }}
