@@ -1,6 +1,6 @@
 
 locals {
-  values_yaml_content = templatefile("${path.module}/values.yaml.tpl", {
+  values_yaml_content = templatefile("${path.module}/templatefiles/prometheus_values.yaml.tpl", {
     grafana_password = "prom-operator",
     influxdb_host = var.influxdb_host,
     influxdb_port = var.influxdb_port,
@@ -49,7 +49,7 @@ resource "kubernetes_config_map" "grafana_dashboards" {
   data = {
     "node-exporter-dashboard.json" = file("${path.module}/dashboards/node-exporter-dashboard.json")
     "telegraf_linux_ready.json"    = file("${path.module}/dashboards/telegraf_linux_ready.json")
-    "smartctl_exporter_fixed.json" = file("${path.module}/dashboards/smartctl_exporter_fixed.json")
+    "smartctl_exporter.json"       = file("${path.module}/dashboards/smartctl_exporter.json")
   }
 }
 
