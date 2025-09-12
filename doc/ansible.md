@@ -1,6 +1,6 @@
-# K3s Raspberry Pi Cluster Provisioning with Ansible
+# K3s Cluster Provisioning with Ansible
 
-Автоматизація розгортання кластеру K3s на Raspberry Pi (1 master + N worker'ів) за допомогою Ansible.
+Автоматизація розгортання кластеру K3s (1 master + N worker'ів) за допомогою Ansible.
 
 ## Структура
 
@@ -56,7 +56,7 @@ ansible_ssh_common_args=-o StrictHostKeyChecking=no
 
 ## Вимоги
 
-- Raspberry Pi з Ubuntu 24.04 LTS
+- Сервери з Ubuntu 24.04 LTS (або сумісний дистрибутив)
 - Ansible ≥ 2.10
 - kubectl встановлений локально для управління кластером
 - Наявність SSH ключа, який дозволяє підключення без пароля
@@ -110,7 +110,7 @@ make setup-influxdb
 Налаштування Telegraf на всіх нодах:
 - Встановлення Telegraf
 - Налаштування конфігурації
-- Налаштування збору метрик Raspberry Pi
+- Налаштування збору метрик нодів
 - Запуск сервісу
 
 ```bash
@@ -120,7 +120,7 @@ make setup-telegraf
 #### `setup-dashboards.yml`
 Імпорт Grafana дашбордів:
 - Встановлення Grafana
-- Імпорт дашбордів для Raspberry Pi
+- Імпорт дашбордів для нодів
 - Налаштування джерел даних
 
 ```bash
@@ -387,7 +387,7 @@ ser4 ansible_host=192.168.88.34 new_hostname=k3s-worker-04 node_type=ryzen stora
 
 ## Видалення K3s
 
-На будь-якому Pi:
+На будь-якій ноді:
 ```bash
 sudo /usr/local/bin/k3s-uninstall.sh
 ```

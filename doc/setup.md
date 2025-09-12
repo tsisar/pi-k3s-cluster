@@ -1,329 +1,274 @@
-# Розгортання кластера на Raspberry Pi
+# Розгортання K3s кластера
 
-Повна інструкція з розгортання K3s кластера на Raspberry Pi з автоматизацією через Ansible та управлінням інфраструктурою через Terraform.
+Повна інструкція з розгортання K3s кластера з автоматизацією через Ansible та управлінням інфраструктурою через Terraform.
 
 > Цей документ описує як вручну налаштувати кластер. Для автоматизованого розгортання використовуйте [Ansible playbooks](/doc/ansible.md).
 
 ---
 
-### Крок 1: Встановлення Raspberry Pi Imager
+## Передумови
 
-**Raspberry Pi Imager** — офіційна утиліта для підготовки носія. Доступна для **Windows**, **macOS** і **Linux**.  
-Осьо тутички:  
-https://www.raspberrypi.com/software/
+### Апаратні вимоги
+
+**Master Node:**
+- CPU: 2+ ядра
+- RAM: 4+ GB
+- Storage: 20+ GB
+- Network: стабільне підключення
+
+**Worker Nodes:**
+- CPU: 2+ ядра
+- RAM: 4+ GB
+- Storage: 20+ GB
+- Network: стабільне підключення
+
+### Програмне забезпечення
+
+- Ubuntu 24.04 LTS Server (або сумісний дистрибутив)
+- SSH доступ
+- Статичні IP адреси
+- Мережева доступність між нодами
 
 ---
 
-### Що він робить?
+## Крок 1: Підготовка нодів
 
-- Завантажує образ **Raspberry Pi OS** (або інший)
-- Пише його на **SD-карту** або **SSD**
-- Дозволяє попередньо налаштувати:
-    - **SSH**
-    - **Wi-Fi**
-    - **hostname**
-    - **користувача + пароль**
+### Встановлення операційної системи
 
----
+1. **Завантажте Ubuntu Server ISO:**
+   ```bash
+   wget https://releases.ubuntu.com/24.04/ubuntu-24.04-lts-server-amd64.iso
+   ```
 
-### Крок 2: Генеруємо SSH-ключ
+2. **Створіть завантажувальний носій:**
+   ```bash
+   # Використовуючи dd
+   sudo dd if=ubuntu-24.04-lts-server-amd64.iso of=/dev/sdX bs=4M status=progress
+   
+   # Або використовуючи balenaEtcher, Rufus тощо
+   ```
 
-Шоб мати доступ до Pi по SSH одразу після першого запуску, треба згенерити SSH-ключ і додати його в конфіг при записі образу.
+3. **Встановіть Ubuntu на кожну ноду:**
+   - Виберіть мінімальну установку
+   - Налаштуйте статичні IP адреси
+   - Створіть користувача з sudo правами
+   - Увімкніть SSH
 
-Як це зробити?
+### Налаштування мережі
 
-#### Якщо ти на Linux або macOS:
->Якщо ви на Windows, розбирайтеся самі...
+**Приклад конфігурації `/etc/netplan/00-installer-config.yaml`:**
 
-У терміналі запускаємо:
-
-```bash
-ssh-keygen -t ed25519 -C "pi-cluster"
+```yaml
+network:
+  version: 2
+  ethernets:
+    enp1s0:  # або eno1, eth0 залежно від сервера
+      dhcp4: false
+      addresses:
+        - 192.168.88.30/24  # Master
+        # - 192.168.88.31/24  # Worker 1
+        # - 192.168.88.32/24  # Worker 2
+        # - 192.168.88.33/24  # Worker 3
+        # - 192.168.88.34/24  # Worker 4
+      gateway4: 192.168.88.1
+      nameservers:
+        addresses:
+          - 8.8.8.8
+          - 1.1.1.1
 ```
-Коли запитає шлях — вводимо шлях, назву (наприклад k3s), ключ збережеться у ~/.ssh/k3s і ~/.ssh/k3s.pub.
 
-Можна одразу додати ключ до ssh:
+Застосуйте зміни:
 ```bash
-ssh-add ~/.ssh/k3s
+sudo netplan apply
 ```
 
-Після цього відкриваємо файл ~/.ssh/k3s.pub, копіюємо його вміст.
-
-Далі — готуємо образ OS з усіма налаштуваннями (Lite, SSH, Wi-Fi, hostname і цей ключ).
-
-Приклад налаштувань:
-![Image](img/pi-imager.png)
-
 ---
 
-### Крок 3: Заливаємо операційку на SD-карту або SSD
+## Крок 2: Підготовка SSH ключів
 
-Тут все просто: беремо **Raspberry Pi OS Lite** і заливаємо на SD-карту або SSD.
-
-> Якщо у вас **нові Pi** і **завантаження з SSD ще не увімкнене**, то ллємо спочатку на SD-карту — з неї й запустимось.
->
-> Якщо ж Pi вже підтримує завантаження з SSD (наприклад, Pi 5 або правильно налаштована Pi 4), то можна **одразу лити на SSD** і **пропустити 5-6 кроки**.
-
-
----
-
-### Крок 4: Перший запуск і оновлення EEPROM
-
-Підключаємо SD-карту (SSD), вмикаємо живлення, чекаємо пару хвилин. Потім дивимось на роутері, яку IP-адресу отримала залізка.
-
-> Можна одразу зробити IP **статичною**, та замінити на більш "зручну".
-
----
-
-#### Крок 5: Перевірка та оновлення EEPROM
-
-Перш ніж йти далі, переконайтесь, що у вас свіжа прошивка EEPROM — вона впливає на підтримку завантаження з SSD.
-
-Підключаємося по SSH, далі оновлюємося:
+### Генерація SSH ключа
 
 ```bash
+ssh-keygen -t ed25519 -C "k3s-cluster"
+```
+
+### Копіювання ключа на ноди
+
+```bash
+# Для кожної ноди
+ssh-copy-id -i ~/.ssh/k3s.pub k3s@192.168.88.30
+ssh-copy-id -i ~/.ssh/k3s.pub k3s@192.168.88.31
+ssh-copy-id -i ~/.ssh/k3s.pub k3s@192.168.88.32
+ssh-copy-id -i ~/.ssh/k3s.pub k3s@192.168.88.33
+ssh-copy-id -i ~/.ssh/k3s.pub k3s@192.168.88.34
+```
+
+---
+
+## Крок 3: Налаштування Ansible
+
+### Встановлення Ansible
+
+```bash
+# Ubuntu/Debian
 sudo apt update
-sudo apt full-upgrade
-sudo reboot
+sudo apt install ansible
+
+# Або через pip
+pip3 install ansible
 ```
 
-Після перезавантаження перевіряємо EEPROM:
-```bash
-sudo rpi-eeprom-update
-```
+### Налаштування inventory
 
-Якщо побачите, що є оновлення — застосовуємо:
-```bash
-sudo rpi-eeprom-update -a
-sudo reboot
-```
-
-> Повторюємо для кожного Raspberry Pi в кластері.
-
----
-
-### Крок 6: EEPROM вже все вміє — порядок завантаження чіпати не треба
-
-Після оновлення EEPROM завантаження з USB/SSD вже за замовчуванням увімкнено — нічого додатково налаштовувати не треба.
-
-> Раніше на **Raspberry Pi 4** треба було вручну міняти Boot Order через `raspi-config`, але тепер це не актуально.
-
-Для довідки: ось як зараз це виглядає:
-![Image](img/boot.png)
-
-
-Поклацати можна тут:
-```bash
-sudo raspi-config
-```
-
----
-
-### Крок 6.1: Фіксимо проблеми з живленням USB (якщо Pi не стартує з SSD)
-
-Якщо ви використовуєте не рідний блок (навіть з PD) і Pi 5 не стартує або перезавантажується, коли на USB підключений SSD чи інший “прожорливий” девайс — є просте рішення:
-
-```bash
-sudo raspi-config
-```
-
-Далі переходимо:
-
-```
-Performance Options → USB Current → Set USB current limit
-```
-
-Або через /boot/firmware/cmdline.txt
-
-Відкриваємо конфіг:
-
-```bash
-sudo nano /boot/firmware/cmdline.txt
-```
-
-Додаємо (або змінюємо) рядок:
+Створіть файл `ansible/inventory/cluster.ini`:
 
 ```ini
-max_usb_current=1
-```
+[master]
+ser0 ansible_host=192.168.88.30 new_hostname=k3s-master-01 node_type=i3
 
-> Це дозволяє подавати до **1.2A** на USB (замість стандартних 600mA).
+[workers]
+ser1 ansible_host=192.168.88.31 new_hostname=k3s-worker-01 node_type=i3
+ser2 ansible_host=192.168.88.32 new_hostname=k3s-worker-02 node_type=celeron
+ser3 ansible_host=192.168.88.33 new_hostname=k3s-worker-03 node_type=celeron
+ser4 ansible_host=192.168.88.34 new_hostname=k3s-worker-04 node_type=ryzen
 
-Зберігаємо, перезавантажуємось.
+[ser:children]
+master
+workers
 
-> ! “Переконайтеся, що блок живлення справді тягне, бо можливо то не просто невдале PD-узгодження.”
----
-
-### Крок 7: Ставимо обов'язковий мінімум для k3s
-
-Щоб `k3s` ставився без глюків, треба трохи підготувати систему.
-
-#### Встановлюємо `iptables`
-
-Деякі образи Raspberry Pi OS Lite не мають його з коробки, тому ставимо руками:
-
-```bash
-sudo apt install -y iptables
-```
-
----
-
-#### Вимикаємо swap
-
-```bash
-sudo dphys-swapfile swapoff
-sudo dphys-swapfile uninstall
-sudo systemctl disable dphys-swapfile
-```
-
-А ще краще — прибрати запис про swap з `/etc/fstab`, якщо там є.
-
----
-
-#### Перевіряємо `cgroup` (для Pi 4/5 зазвичай ок)
-
-Виконуємо:
-
-```bash
-cat /boot/firmware/cmdline.txt
-```
-
-Перевіряємо, що там є `cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1`
-
-Якщо ні — додаємо ці опції в кінець рядка і перезавантажуємо:
-
-```bash
-sudo nano /boot/firmware/cmdline.txt
-```
-Додаємо в кінець рядка (в один рядок, без переносу)
-
-Зберігаємо і:
-```bash
-sudo reboot
+[ser:vars]
+kube_context_name=k3s-cluster
+ansible_user=k3s
+ansible_password=k3s
+ansible_become=true
+ansible_become_method=sudo
+ansible_become_password=k3s
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_common_args=-o StrictHostKeyChecking=no
 ```
 
 ---
 
-### Крок 8: Встановлюємо `k3s` master-ноду
+## Крок 4: Автоматизоване розгортання
 
-Будемо використовувати **[k3s](https://k3s.io/)** — легкий Kubernetes, який ідеально підходить для Raspberry Pi.
-
-Ставимо master-ноду однією командою:
+### Використання Ansible playbooks
 
 ```bash
-curl -sfL https://get.k3s.io | sh -s - --disable traefik
+# Підготовка системи
+ansible-playbook -i inventory/cluster.ini playbooks/setup-ubuntu.yml
+
+# Встановлення K3s
+ansible-playbook -i inventory/cluster.ini playbooks/setup-k3s.yml
+
+# Налаштування моніторингу
+ansible-playbook -i inventory/cluster.ini playbooks/setup-influxdb.yml
+ansible-playbook -i inventory/cluster.ini playbooks/setup-telegraf.yml
+
+# Копіювання конфігурації
+ansible-playbook -i inventory/cluster.ini playbooks/copy-cluster-config.yml
 ```
 
-Статус сервісу можна перевірити так:
+### Використання Makefile
 
 ```bash
-systemctl status k3s.service
-```
+# Повне розгортання
+make setup-all
 
-> Я використовую **Ingress NGINX**, тому одразу прибираю `traefik`, шоб не заважав.
-
-
-### Отримуємо токен для воркерів
-
-Щоб підключити воркер-ноди до master, треба токен:
-
-```bash
-sudo cat /var/lib/rancher/k3s/server/node-token
-```
-
-Цей токен використовуватимемо на всіх Pi-нодах, які хочемо додати до кластеру.
-
-
-### Конфіг Kubernetes
-
-Одразу дивимось, де лежить `kubeconfig`, і адаптуємо його при потребі (наприклад, для доступу з іншої машини в мережі):
-
-```bash
-sudo cat /etc/rancher/k3s/k3s.yaml
-```
-
-> Просто змінюємо `127.0.0.1` на IP-адресу вашого Pi-master, і все буде працювати.
-
----
-
-### Крок 9: Додаємо worker-ноду до кластера без Traefik
-
-На `master`-ноді (де вже стоїть `k3s`), ми маємо IP та токен:
-
-На новій worker-ноді запускаємо:
-
-```bash
-curl -sfL https://get.k3s.io | \
-  K3S_URL=https://<IP_MASTER>:6443 \
-  K3S_TOKEN=<NODE_TOKEN> \
-  sh -
-```
-
-Статус сервісу можна перевірити так:
-
-```bash
-systemctl status k3s-agent.service
-```
----
-
-### Перевіряємо
-
-```bash
-kubectl get nodes
-```
-
-Тут має зʼявитися новий вузол зі статусом `Ready`.
-
-> P.S. Грохнув свій кластер щоб то написати.
-
----
-
-## Автоматизоване розгортання
-
-Для автоматизованого розгортання кластера використовуйте Ansible playbooks:
-
-### Швидкий старт
-```bash
-# Повне налаштування кластера
-make full
-```
-
-### Поетапне налаштування
-```bash
-# 1. Підготовка Ubuntu системи
+# Окремі компоненти
 make setup-ubuntu
-
-# 2. Налаштування моніторингу
-make setup-influxdb
-make setup-telegraf
-make setup-dashboards
-
-# 3. Встановлення K3s
 make setup-k3s
-
-# 4. Налаштування доступу до кластера
-make setup-cluster-access
-
-# 5. Розгортання інфраструктури
-make apply
+make setup-monitoring
 ```
 
-### Перевірка статусу
-```bash
-# Статус кластера
-make cluster-status
+---
 
+## Крок 5: Перевірка кластера
+
+### Перевірка статусу нодів
+
+```bash
+kubectl get nodes -o wide
+```
+
+### Перевірка подів
+
+```bash
+kubectl get pods --all-namespaces
+```
+
+### Перевірка сервісів
+
+```bash
+kubectl get services --all-namespaces
+```
+
+---
+
+## Крок 6: Налаштування доступу
+
+### Копіювання kubeconfig
+
+```bash
+ansible-playbook -i inventory/cluster.ini playbooks/copy-cluster-config.yml
+```
+
+### Налаштування kubectl
+
+```bash
+export KUBECONFIG=~/.kube/k3s-cluster
+kubectl config use-context k3s-cluster
+```
+
+---
+
+## Troubleshooting
+
+### Проблеми з мережею
+
+```bash
 # Перевірка підключення
-make test-connection
+ping 192.168.88.30
+telnet 192.168.88.30 6443
+
+# Перевірка firewall
+sudo ufw status
+sudo ufw allow 6443
 ```
 
-### Оновлення системи
+### Проблеми з K3s
+
 ```bash
-# Безпечне оновлення Ubuntu
-make upgrade-ubuntu-safe
+# Перевірка логів
+sudo journalctl -u k3s -f
 
-# Тільки оновлення безпеки
-make upgrade-security
+# Перезапуск сервісу
+sudo systemctl restart k3s
 ```
 
-Детальніше про Ansible playbooks читайте в [документації](/doc/ansible.md).
+### Проблеми з Ansible
+
+```bash
+# Тест підключення
+ansible all -i inventory/cluster.ini -m ping
+
+# Детальний вивід
+ansible-playbook -i inventory/cluster.ini playbooks/setup-k3s.yml -vvv
+```
+
+---
+
+## Наступні кроки
+
+1. **Налаштування моніторингу** - [Telegraf + InfluxDB](/doc/telegraf.md)
+2. **Налаштування додатків** - [Terraform modules](/terraform/)
+3. **Безпека** - [Vault setup](/doc/vault.md)
+4. **Troubleshooting** - [Common issues](/doc/troubleshooting.md)
+
+---
+
+## Корисні посилання
+
+- [K3s Documentation](https://k3s.io/)
+- [Ansible Documentation](https://docs.ansible.com/)
+- [Ubuntu Server Guide](https://ubuntu.com/server/docs)
+- [Kubernetes Documentation](https://kubernetes.io/docs/)
