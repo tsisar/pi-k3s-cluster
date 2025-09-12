@@ -2,9 +2,41 @@
 
 Ця інструкція дозволяє підключити Raspberry Pi до централізованого моніторингу на базі InfluxDB через Telegraf.
 
+> Для автоматизованого налаштування використовуйте [Ansible playbooks](/doc/ansible.md).
+
 ---
 
-## 1. Встановлюємо Telegraf
+## Автоматизоване налаштування
+
+### Швидкий старт
+```bash
+# Встановлення InfluxDB на master ноді
+make setup-influxdb
+
+# Налаштування Telegraf на всіх нодах
+make setup-telegraf
+
+# Імпорт Grafana дашбордів
+make setup-dashboards
+```
+
+### Поетапне налаштування
+```bash
+# 1. Встановлення InfluxDB
+ansible-playbook -i inventory/cluster.ini playbooks/setup-influxdb.yml
+
+# 2. Налаштування Telegraf
+ansible-playbook -i inventory/cluster.ini playbooks/setup-telegraf.yml
+
+# 3. Імпорт дашбордів
+ansible-playbook -i inventory/cluster.ini playbooks/setup-dashboards.yml
+```
+
+---
+
+## Ручне налаштування
+
+### 1. Встановлюємо Telegraf
 
 Додаємо офіційний репозиторій InfluxData:
 

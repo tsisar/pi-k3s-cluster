@@ -9,8 +9,6 @@
     backup_enabled: true
     service_checks:
       - k3s
-      - docker
-      - containerd
       - systemd-resolved
       - chrony
 
@@ -43,7 +41,7 @@
 
         - name: Display disk space before upgrade
           ansible.builtin.debug:
-            msg: "Disk space before upgrade: {{ disk_space_before.stdout_lines[1] }}"
+            msg: "Disk space before upgrade: {{ disk_space_before.stdout_lines[1] if disk_space_before.stdout_lines | length > 1 else 'Unable to get disk space info' }}"
 
         - name: Check running services before upgrade
           ansible.builtin.systemd:
@@ -52,6 +50,13 @@
           register: services_before
           loop: "{{ service_checks }}"
           ignore_errors: true
+
+        - name: Create backup directory
+          ansible.builtin.file:
+            path: "/tmp/backup-{{ inventory_hostname }}"
+            state: directory
+            mode: '0755'
+          when: backup_enabled
 
         - name: Create backup of important configs
           ansible.builtin.copy:
@@ -64,15 +69,8 @@
             - /etc/systemd/resolved.conf
             - /etc/chrony/chrony.conf
             - /etc/sysctl.d/99-kubernetes-cri.conf
-          when: backup_enabled
+          when: backup_enabled and not ansible_check_mode
           ignore_errors: true
-
-        - name: Create backup directory
-          ansible.builtin.file:
-            path: "/tmp/backup-{{ inventory_hostname }}"
-            state: directory
-            mode: '0755'
-          when: backup_enabled
 
         # ---- Perform upgrade ----
         - name: Update package lists
@@ -100,6 +98,7 @@
           register: upgrade_result
           async: "{{ upgrade_timeout }}"
           poll: 10
+          when: not ansible_check_mode
 
         - name: Wait for upgrade to complete
           ansible.builtin.async_status:
@@ -108,11 +107,20 @@
           until: upgrade_job_result.finished
           retries: "{{ upgrade_timeout // 10 }}"
           delay: 10
+          when: not ansible_check_mode
 
         - name: Check upgrade result
           ansible.builtin.fail:
             msg: "Package upgrade failed or timed out"
-          when: upgrade_job_result.failed
+          when: not ansible_check_mode and upgrade_job_result.failed
+
+        - name: Simulate package upgrade in check mode
+          ansible.builtin.apt:
+            upgrade: dist
+            autoremove: true
+            autoclean: true
+            dpkg_options: 'force-confold,force-confdef'
+          when: ansible_check_mode
 
         # ---- Post-upgrade checks ----
         - name: Check disk space after upgrade
@@ -122,7 +130,7 @@
 
         - name: Display disk space after upgrade
           ansible.builtin.debug:
-            msg: "Disk space after upgrade: {{ disk_space_after.stdout_lines[1] }}"
+            msg: "Disk space after upgrade: {{ disk_space_after.stdout_lines[1] if disk_space_after.stdout_lines | length > 1 else 'Unable to get disk space info' }}"
 
         - name: Check if reboot is required
           ansible.builtin.stat:
