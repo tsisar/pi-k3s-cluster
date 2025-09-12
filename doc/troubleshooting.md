@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Цей документ містить рішення найпоширеніших проблем при роботі з K3s кластером на Raspberry Pi.
+Цей документ містить рішення найпоширеніших проблем при роботі з K3s кластером.
 
 ---
 
@@ -501,5 +501,5 @@ kubectl apply -f secrets-backup.yaml
 ### Корисні посилання
 - [K3s Documentation](https://k3s.io/docs/)
 - [Kubernetes Troubleshooting](https://kubernetes.io/docs/tasks/debug-application-cluster/)
-- [Raspberry Pi Documentation](https://www.raspberrypi.org/documentation/)
+- [K3s Documentation](https://k3s.io/)
 

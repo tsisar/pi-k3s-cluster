@@ -1,6 +1,6 @@
-# Raspberry Pi Monitoring Setup (Telegraf + InfluxDB)
+# Node Monitoring Setup (Telegraf + InfluxDB)
 
-Ця інструкція дозволяє підключити Raspberry Pi до централізованого моніторингу на базі InfluxDB через Telegraf.
+Ця інструкція дозволяє підключити ноди кластера до централізованого моніторингу на базі InfluxDB через Telegraf.
 
 > Для автоматизованого налаштування використовуйте [Ansible playbooks](/doc/ansible.md).
 
@@ -150,7 +150,7 @@ grok_patterns = ["temp=%{NUMBER:value:float}'C"]
 ###############################################################################
 
 [global_tags]
-host = "raspberry-pi"
+host = "k3s-node"
 ```
 
 **УВАГА:**
@@ -158,7 +158,7 @@ host = "raspberry-pi"
 
 ```toml
 [global_tags]
-host = "pi-node-01"
+host = "k3s-worker-01"
 ```
 
 щоб у кластерному моніторингу можна було розрізняти ноди.
@@ -188,6 +188,6 @@ sudo telegraf --config /etc/telegraf/telegraf.conf --test
 
 ## Після виконання цього інструктажу
 
-* Raspberry Pi підключений до центрального InfluxDB.
+* Ноди кластера підключені до центрального InfluxDB.
 * Дані збираються через Telegraf.
 * Можна підключати в Grafana.
