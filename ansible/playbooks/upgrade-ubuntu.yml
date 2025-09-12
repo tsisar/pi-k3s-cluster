@@ -1,0 +1,155 @@
+---
+- name: Upgrade Ubuntu system packages
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    reboot_required: false
+    upgrade_timeout: 1800  # 30 minutes
+
+  pre_tasks:
+    - name: Ensure required collections are present
+      ansible.builtin.command: >
+        ansible-galaxy collection install
+        ansible.posix
+        community.general
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+  tasks:
+    - block:
+        - name: Check if system needs reboot
+          ansible.builtin.stat:
+            path: /var/run/reboot-required
+          register: reboot_check
+
+        - name: Set reboot required fact
+          ansible.builtin.set_fact:
+            reboot_required: "{{ reboot_check.stat.exists }}"
+
+        - name: Display current system information
+          ansible.builtin.debug:
+            msg: |
+              Host: {{ inventory_hostname }}
+              OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+              Kernel: {{ ansible_kernel }}
+              Architecture: {{ ansible_architecture }}
+              Reboot required: {{ reboot_required }}
+
+        # ---- Update package lists ----
+        - name: Update package lists
+          ansible.builtin.apt:
+            update_cache: true
+            cache_valid_time: 3600
+
+        # ---- Check for available updates ----
+        - name: Check for available updates
+          ansible.builtin.command: apt list --upgradable
+          register: available_updates
+          changed_when: false
+
+        - name: Display available updates count
+          ansible.builtin.debug:
+            msg: "Available updates: {{ available_updates.stdout_lines | length - 1 }}"
+
+        # ---- Upgrade packages ----
+        - name: Upgrade all packages
+          ansible.builtin.apt:
+            upgrade: dist
+            autoremove: true
+            autoclean: true
+          register: upgrade_result
+          async: "{{ upgrade_timeout }}"
+          poll: 10
+
+        - name: Wait for upgrade to complete
+          ansible.builtin.async_status:
+            jid: "{{ upgrade_result.ansible_job_id }}"
+          register: upgrade_job_result
+          until: upgrade_job_result.finished
+          retries: "{{ upgrade_timeout // 10 }}"
+          delay: 10
+
+        - name: Check upgrade result
+          ansible.builtin.fail:
+            msg: "Package upgrade failed or timed out"
+          when: upgrade_job_result.failed
+
+        # ---- Clean up ----
+        - name: Clean package cache
+          ansible.builtin.apt:
+            autoclean: true
+            autoremove: true
+
+        - name: Clean old kernels (keep last 2)
+          ansible.builtin.shell: |
+            dpkg -l linux-image-* | awk '/^ii/{print $2}' | grep -v $(uname -r) | head -n -2 | xargs -r apt-get purge -y
+          args:
+            executable: /bin/bash
+          ignore_errors: true
+
+        # ---- Check if reboot is required after upgrade ----
+        - name: Check if reboot is required after upgrade
+          ansible.builtin.stat:
+            path: /var/run/reboot-required
+          register: reboot_check_after
+
+        - name: Set reboot required fact after upgrade
+          ansible.builtin.set_fact:
+            reboot_required: "{{ reboot_check_after.stat.exists }}"
+
+        - name: Display reboot status
+          ansible.builtin.debug:
+            msg: |
+              Upgrade completed on {{ inventory_hostname }}
+              Reboot required: {{ reboot_required }}
+              {% if reboot_required %}
+              Reboot reason: {{ ansible.builtin.slurp(src='/var/run/reboot-required.pkgs', errors='ignore').content | b64decode | default('Unknown') }}
+              {% endif %}
+
+        # ---- Optional reboot ----
+        - name: Reboot system if required
+          ansible.builtin.reboot:
+            msg: "Rebooting after package upgrade"
+            pre_reboot_delay: 10
+            post_reboot_delay: 30
+            reboot_timeout: 300
+          when: reboot_required
+
+        - name: Wait for system to come back online after reboot
+          ansible.builtin.wait_for_connection:
+            timeout: 300
+          when: reboot_required
+
+        - name: Verify system is running after upgrade
+          ansible.builtin.setup:
+            gather_subset: '!all'
+            filter: ansible_distribution*
+
+        - name: Display final system information
+          ansible.builtin.debug:
+            msg: |
+              Upgrade completed successfully on {{ inventory_hostname }}
+              Final OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+              Final Kernel: {{ ansible_kernel }}
+
+      when:
+        - ansible_facts['os_family'] == "Debian"
+        - ansible_facts['distribution'] == "Ubuntu"
+
+    - name: Skip upgrade for non-Ubuntu systems
+      ansible.builtin.debug:
+        msg: "Skipping upgrade for {{ ansible_distribution }} {{ ansible_distribution_version }} (not Ubuntu)"
+      when: ansible_facts['distribution'] != "Ubuntu"
+
+  post_tasks:
+    - name: Display upgrade summary
+      ansible.builtin.debug:
+        msg: |
+          Upgrade process completed for {{ inventory_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Kernel: {{ ansible_kernel }}
+          Reboot performed: {{ reboot_required }}

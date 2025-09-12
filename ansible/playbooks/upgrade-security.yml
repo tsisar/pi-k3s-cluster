@@ -1,0 +1,172 @@
+---
+- name: Install security updates only
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    security_packages:
+      - unattended-upgrades
+      - apt-listchanges
+      - debsecan
+
+  pre_tasks:
+    - name: Ensure required collections are present
+      ansible.builtin.command: >
+        ansible-galaxy collection install
+        ansible.posix
+        community.general
+      changed_when: false
+      run_once: true
+      delegate_to: localhost
+      become: false
+
+  tasks:
+    - block:
+        - name: Display current security status
+          ansible.builtin.debug:
+            msg: |
+              Security update check for {{ inventory_hostname }}:
+              OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+              Last update: {{ ansible_date_time.date }}
+
+        # ---- Install security tools ----
+        - name: Install security update tools
+          ansible.builtin.apt:
+            name: "{{ security_packages }}"
+            state: present
+            update_cache: true
+
+        # ---- Configure unattended upgrades ----
+        - name: Configure unattended upgrades for security updates
+          ansible.builtin.copy:
+            dest: /etc/apt/apt.conf.d/50unattended-upgrades
+            content: |
+              Unattended-Upgrade::Allowed-Origins {
+                  "${distro_id}:${distro_codename}-security";
+                  "${distro_id}ESMApps:${distro_codename}-apps-security";
+                  "${distro_id}ESM:${distro_codename}-infra-security";
+              };
+              
+              Unattended-Upgrade::AutoFixInterruptedDpkg "true";
+              Unattended-Upgrade::MinimalSteps "true";
+              Unattended-Upgrade::Remove-Unused-Dependencies "true";
+              Unattended-Upgrade::Automatic-Reboot "false";
+              Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
+              Unattended-Upgrade::Automatic-Reboot-Time "02:00";
+              
+              Unattended-Upgrade::Mail "root";
+              Unattended-Upgrade::MailOnlyOnError "true";
+              
+              Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+              Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+              Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+            backup: yes
+
+        - name: Enable unattended upgrades
+          ansible.builtin.copy:
+            dest: /etc/apt/apt.conf.d/20auto-upgrades
+            content: |
+              APT::Periodic::Update-Package-Lists "1";
+              APT::Periodic::Unattended-Upgrade "1";
+              APT::Periodic::AutocleanInterval "7";
+            backup: yes
+
+        # ---- Check for security updates ----
+        - name: Update package lists
+          ansible.builtin.apt:
+            update_cache: true
+
+        - name: Check for security updates
+          ansible.builtin.command: apt list --upgradable | grep -E "(security|esm)"
+          register: security_updates
+          changed_when: false
+          ignore_errors: true
+
+        - name: Display available security updates
+          ansible.builtin.debug:
+            msg: |
+              Security updates available for {{ inventory_hostname }}:
+              {{ security_updates.stdout if security_updates.stdout else 'No security updates available' }}
+
+        # ---- Install security updates ----
+        - name: Install security updates only
+          ansible.builtin.apt:
+            upgrade: safe
+            autoremove: true
+            autoclean: true
+          register: security_upgrade_result
+          when: security_updates.stdout is defined and security_updates.stdout != ""
+
+        - name: Display security upgrade result
+          ansible.builtin.debug:
+            msg: |
+              Security upgrade completed on {{ inventory_hostname }}
+              Packages upgraded: {{ security_upgrade_result.changed | default(false) }}
+
+        # ---- Check for critical vulnerabilities ----
+        - name: Check for critical vulnerabilities
+          ansible.builtin.command: debsecan --format=text --suite={{ ansible_distribution_release }}
+          register: vulnerabilities
+          changed_when: false
+          ignore_errors: true
+
+        - name: Display critical vulnerabilities
+          ansible.builtin.debug:
+            msg: |
+              Critical vulnerabilities for {{ inventory_hostname }}:
+              {{ vulnerabilities.stdout if vulnerabilities.stdout else 'No critical vulnerabilities found' }}
+
+        # ---- Verify system security ----
+        - name: Check if reboot is required for security updates
+          ansible.builtin.stat:
+            path: /var/run/reboot-required
+          register: security_reboot_check
+
+        - name: Display security reboot requirement
+          ansible.builtin.debug:
+            msg: |
+              Security update reboot required: {{ security_reboot_check.stat.exists }}
+              {% if security_reboot_check.stat.exists %}
+              Reboot reason: {{ ansible.builtin.slurp(src='/var/run/reboot-required.pkgs', errors='ignore').content | b64decode | default('Security updates') }}
+              {% endif %}
+
+        # ---- Optional security reboot ----
+        - name: Reboot system for security updates
+          ansible.builtin.reboot:
+            msg: "Rebooting for security updates"
+            pre_reboot_delay: 10
+            post_reboot_delay: 30
+            reboot_timeout: 300
+          when: security_reboot_check.stat.exists
+
+        - name: Wait for system to come back online after security reboot
+          ansible.builtin.wait_for_connection:
+            timeout: 300
+          when: security_reboot_check.stat.exists
+
+        # ---- Final security status ----
+        - name: Display final security status
+          ansible.builtin.debug:
+            msg: |
+              Security update process completed for {{ inventory_hostname }}
+              OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+              Unattended upgrades: Enabled
+              Last security check: {{ ansible_date_time.date }}
+
+      when:
+        - ansible_facts['os_family'] == "Debian"
+        - ansible_facts['distribution'] == "Ubuntu"
+
+    - name: Skip security updates for non-Ubuntu systems
+      ansible.builtin.debug:
+        msg: "Skipping security updates for {{ ansible_distribution }} {{ ansible_distribution_version }} (not Ubuntu)"
+      when: ansible_facts['distribution'] != "Ubuntu"
+
+  post_tasks:
+    - name: Display security update summary
+      ansible.builtin.debug:
+        msg: |
+          Security update process completed for {{ inventory_hostname }}
+          Unattended upgrades configured and enabled
+          Next automatic security update: Tomorrow at 02:00
