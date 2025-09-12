@@ -1,0 +1,24 @@
+---
+- name: Label K3s nodes with CPU type
+  hosts: ser
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Label node with CPU type
+      shell: |
+        kubectl label nodes {{ new_hostname }} node-type={{ node_type }} --overwrite
+      delegate_to: "{{ groups['master'][0] }}"
+      when: node_type is defined
+
+    - name: Display node labels
+      shell: |
+        kubectl get nodes --show-labels | grep {{ new_hostname }}
+      delegate_to: "{{ groups['master'][0] }}"
+      register: node_labels
+      when: node_type is defined
+
+    - name: Show node labels
+      debug:
+        msg: "{{ node_labels.stdout }}"
+      when: node_type is defined

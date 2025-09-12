@@ -15,6 +15,7 @@ ansible/
     ├── setup-telegraf.yml      # Налаштування Telegraf
     ├── setup-dashboards.yml    # Імпорт Grafana дашбордів
     ├── setup-k3s.yml           # Встановлення K3s на master і worker'и
+    ├── label-nodes.yml         # Маркування нодів за типом процесора
     ├── copy-cluster-config.yml # Копіювання kubeconfig
     ├── copy-cluster-secrets.yml # Копіювання сертифікатів
     ├── setup-cluster-access.yml # Налаштування доступу до кластера
@@ -30,17 +31,27 @@ ansible/
 
 ```ini
 [master]
-pi0 ansible_host=192.168.88.30 new_hostname=pi-k3s-master-01
+ser0 ansible_host=192.168.88.30 new_hostname=k3s-master-01 node_type=i3
 
 [workers]
-pi1 ansible_host=192.168.88.31 new_hostname=pi-k3s-worker-01
-pi2 ansible_host=192.168.88.32 new_hostname=pi-k3s-worker-02
+ser1 ansible_host=192.168.88.31 new_hostname=k3s-worker-01 node_type=i3
+ser2 ansible_host=192.168.88.32 new_hostname=k3s-worker-02 node_type=celeron
+ser3 ansible_host=192.168.88.33 new_hostname=k3s-worker-03 node_type=celeron
+ser4 ansible_host=192.168.88.34 new_hostname=k3s-worker-04 node_type=ryzen
 
-[pi:vars]
-ansible_user=pi
-ansible_ssh_private_key_file=~/.ssh/k3s
+[ser:children]
+master
+workers
+
+[ser:vars]
+kube_context_name=k3s-cluster
+ansible_user=k3s
+ansible_password=k3s
+ansible_become=true
+ansible_become_method=sudo
+ansible_become_password=k3s
 ansible_python_interpreter=/usr/bin/python3
-kube_context_name=local-k3s
+ansible_ssh_common_args=-o StrictHostKeyChecking=no
 ```
 
 ## Вимоги
@@ -273,6 +284,105 @@ ansible all -i inventory/cluster.ini -m shell -a "dpkg --configure -a"
 ```bash
 # Відновлення з backup
 ansible all -i inventory/cluster.ini -m copy -a "src=/tmp/backup-{{ inventory_hostname }}/{{ item }} dest={{ item }}"
+```
+
+## Маркування нодів (Node Labeling)
+
+Кластер автоматично маркує ноди за типом процесора для контролю розміщення подів.
+
+### Поточні лейбли
+
+- **k3s-master-01**: `node-type=i3`
+- **k3s-worker-01**: `node-type=i3`  
+- **k3s-worker-02**: `node-type=celeron`
+- **k3s-worker-03**: `node-type=celeron`
+- **k3s-worker-04**: `node-type=ryzen`
+
+### Використання в Deployment'ах
+
+#### nodeSelector (простий спосіб)
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  template:
+    spec:
+      nodeSelector:
+        node-type: i3  # Розміщувати тільки на i3 нодах
+      containers:
+      - name: my-app
+        image: nginx
+```
+
+#### nodeAffinity (більш гнучкий)
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - i3
+                - ryzen  # Розміщувати на i3 або ryzen нодах
+      containers:
+      - name: my-app
+        image: nginx
+```
+
+#### Приклад: Розміщення на потужних нодах
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: heavy-workload
+spec:
+  template:
+    spec:
+      nodeSelector:
+        node-type: ryzen  # Тільки на Ryzen ноді
+      containers:
+      - name: heavy-workload
+        image: my-heavy-app
+        resources:
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+```
+
+### Оновлення лейблів
+
+```bash
+# Оновити лейбли всіх нодів
+ansible-playbook -i inventory/cluster.ini playbooks/label-nodes.yml
+
+# Перевірити поточні лейбли
+ansible ser0 -i inventory/cluster.ini -m shell -a "kubectl get nodes --show-labels"
+```
+
+### Додавання нових лейблів
+
+Для додавання нових лейблів відредагуйте `inventory/cluster.ini`:
+
+```ini
+[master]
+ser0 ansible_host=192.168.88.30 new_hostname=k3s-master-01 node_type=i3 storage_type=ssd
+
+[workers]
+ser1 ansible_host=192.168.88.31 new_hostname=k3s-worker-01 node_type=i3 storage_type=ssd
+ser2 ansible_host=192.168.88.32 new_hostname=k3s-worker-02 node_type=celeron storage_type=hdd
+ser3 ansible_host=192.168.88.33 new_hostname=k3s-worker-03 node_type=celeron storage_type=hdd
+ser4 ansible_host=192.168.88.34 new_hostname=k3s-worker-04 node_type=ryzen storage_type=nvme
 ```
 
 ## Видалення K3s

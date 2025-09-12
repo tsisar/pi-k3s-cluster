@@ -26,6 +26,11 @@
           To copy the kubeconfig to your local machine, run:
           ansible-playbook -i inventory/cluster.ini playbooks/copy-cluster-config.yml
 
+    - name: Label master node with CPU type
+      shell: |
+        kubectl label nodes {{ new_hostname }} node-type={{ node_type }} --overwrite
+      when: node_type is defined
+
 - name: Step 4 — Install K3s on workers
   hosts: workers
   become: true
@@ -44,3 +49,9 @@
         K3S_TOKEN: "{{ k3s_token }}"
       args:
         creates: /etc/rancher/k3s/k3s.yaml
+
+    - name: Label worker node with CPU type
+      shell: |
+        kubectl label nodes {{ new_hostname }} node-type={{ node_type }} --overwrite
+      when: node_type is defined
+      delegate_to: "{{ master_node }}"
