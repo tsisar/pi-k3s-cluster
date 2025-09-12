@@ -636,7 +636,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "S.M.A.R.T Disk Monitoring - smartctl-exporter (Fixed)",
+  "title": "S.M.A.R.T Disk Monitoring - smartctl-exporter",
   "uid": "smartctl-exporter-fixed",
   "version": 1
 }
