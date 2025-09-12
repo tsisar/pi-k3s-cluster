@@ -38,11 +38,18 @@
       when: 
         - existing_token.stdout == ""
         - new_token_result.stdout_lines is defined
+        - new_token_result.stdout_lines | length > 0
+        - not ansible_check_mode
 
     - name: Use existing token
       set_fact:
         telegraf_token: "{{ existing_token.stdout }}"
       when: existing_token.stdout != ""
+
+    - name: Set dummy token for check mode
+      set_fact:
+        telegraf_token: "dummy-token-for-check-mode"
+      when: ansible_check_mode
 
     - name: Install dependencies
       apt:
@@ -113,7 +120,7 @@
           [[inputs.diskio]]
 
           [[inputs.net]]
-            interfaces = ["eth0", "ens*", "enp*"]
+            interfaces = ["eth0", "ens*", "enp*", "eno*"]
 
           [[inputs.system]]
 
@@ -134,18 +141,19 @@
             data_format = "grok"
             grok_patterns = ["%{SYSLOGTIMESTAMP:timestamp} %{IPORHOST:hostname} %{PROG:program}: %{GREEDYDATA:message}"]
 
-          [[inputs.file]]
-            files = ["/sys/class/thermal/thermal_zone*/temp"]
-            name_override = "cpu_temperature"
-            data_format = "value"
-            data_type = "integer"
+          # Temperature monitoring disabled due to hardware compatibility issues
+          # [[inputs.file]]
+          #   files = ["/sys/class/thermal/thermal_zone0/temp", "/sys/class/thermal/thermal_zone1/temp", "/sys/class/thermal/thermal_zone2/temp"]
+          #   name_override = "cpu_temperature"
+          #   data_format = "value"
+          #   data_type = "integer"
 
-          [[inputs.exec]]
-            commands = ["sensors -u | grep -E 'temp[0-9]+_input' | awk '{print $2}' | head -1"]
-            name_override = "cpu_temperature_sensors"
-            data_format = "value"
-            data_type = "float"
-            timeout = "5s"
+          # [[inputs.exec]]
+          #   commands = ["sensors | grep 'Core 0' | awk '{print $3}' | sed 's/+//' | sed 's/°C//'"]
+          #   name_override = "cpu_temperature_sensors"
+          #   data_format = "value"
+          #   data_type = "float"
+          #   timeout = "5s"
 
           [[inputs.smart]]
             devices = ["/dev/sd*", "/dev/nvme*"]
