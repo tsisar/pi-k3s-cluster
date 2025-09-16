@@ -1,0 +1,79 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-client-update
+  namespace: keycloak
+  labels:
+    app: keycloak
+spec:
+  template:
+    metadata:
+      labels:
+        app: keycloak-client-update
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: keycloak-client-update
+          image: alpine/curl:latest
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - |
+              apk add --no-cache jq
+              echo "Waiting for Keycloak to be ready..."
+              until curl -f http://keycloak:8080/realms/master; do
+                echo "Keycloak not ready yet, waiting..."
+                sleep 10
+              done
+              
+              echo "Keycloak is ready, updating krakend client..."
+              
+              # Get admin token
+              TOKEN=$(curl -s -X POST "http://keycloak:8080/realms/master/protocol/openid-connect/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "username=admin" \
+                -d "password=admin" \
+                -d "grant_type=password" \
+                -d "client_id=admin-cli" | jq -r '.access_token')
+              
+              echo "Got admin token, getting krakend client..."
+              
+              # Get krakend client
+              CLIENT_ID=$(curl -s -X GET "http://keycloak:8080/admin/realms/rakia/clients?clientId=krakend" \
+                -H "Authorization: Bearer $TOKEN" | jq -r '.[0].id')
+              
+              echo "Krakend client ID: $CLIENT_ID"
+              
+              # Update krakend client to enable direct access grants
+              curl -X PUT "http://keycloak:8080/admin/realms/rakia/clients/$CLIENT_ID" \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Content-Type: application/json" \
+                -d '{
+                  "clientId": "krakend",
+                  "name": "KrakenD API Gateway",
+                  "description": "KrakenD API Gateway client for authentication",
+                  "enabled": true,
+                  "clientAuthenticatorType": "client-secret",
+                  "secret": "krakend-secret-123",
+                  "standardFlowEnabled": false,
+                  "implicitFlowEnabled": false,
+                  "directAccessGrantsEnabled": true,
+                  "serviceAccountsEnabled": true,
+                  "publicClient": false,
+                  "protocol": "openid-connect",
+                  "defaultClientScopes": [
+                    "web-origins",
+                    "role_list",
+                    "profile",
+                    "roles",
+                    "email"
+                  ],
+                  "optionalClientScopes": [
+                    "address",
+                    "phone",
+                    "offline_access",
+                    "microprofile-jwt"
+                  ]
+                }'
+              
+              echo "Krakend client updated successfully with direct access grants enabled"

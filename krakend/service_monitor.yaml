@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: krakend-bff
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels: { app: krakend-bff }
+  namespaceSelector:
+    matchNames: [ "krakend-lab" ]
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s

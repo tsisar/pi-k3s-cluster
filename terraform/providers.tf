@@ -1,12 +1,12 @@
 provider "kubernetes" {
   config_path    = "~/.kube/config"
-  config_context = "local-k3s"
+  config_context = "local"
 }
 
 provider "helm" {
   kubernetes = {
     config_path    = "~/.kube/config"
-    config_context = "local-k3s"
+    config_context = "local"
   }
 }
 
