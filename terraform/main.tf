@@ -32,19 +32,19 @@ module "monitoring" {
   for_each        = var.enabled_modules.monitoring ? { "enabled" = {} } : {}
   grafana_host    = var.hosts.grafana
   prometheus_host = var.hosts.prometheus
-  
+
   # InfluxDB configuration
-  influxdb_host     = "192.168.88.30"
-  influxdb_port     = 8086
-  influxdb_org      = "k3s-cluster"
-  influxdb_bucket   = "telegraf"
-  influxdb_token    = var.influxdb_token
-  
+  influxdb_host   = "192.168.88.30"
+  influxdb_port   = 8086
+  influxdb_org    = "k3s-cluster"
+  influxdb_bucket = "telegraf"
+  influxdb_token  = var.influxdb_token
+
   # Smartctl Exporter configuration
-  smartctl_exporter_enabled   = true
-  smartctl_exporter_image     = "prometheuscommunity/smartctl-exporter:latest"
-  smartctl_exporter_interval  = "60s"
-  smartctl_exporter_rescan    = "10m"
+  smartctl_exporter_enabled  = true
+  smartctl_exporter_image    = "prometheuscommunity/smartctl-exporter:latest"
+  smartctl_exporter_interval = "60s"
+  smartctl_exporter_rescan   = "10m"
 }
 
 module "argo_cd" {
@@ -65,10 +65,11 @@ module "keycloak" {
 
 # Demo Module
 module "demo" {
-  source     = "./modules/demo"
-  for_each   = var.enabled_modules.demo ? { "enabled" = {} } : {}
-  host       = var.hosts.demo
-  repo_url = "https://github.com/tsisar/pi-k3s-cluster.git"
+  source          = "./modules/demo"
+  for_each        = var.enabled_modules.demo ? { "enabled" = {} } : {}
+  host            = var.hosts.demo
+  repo_url        = "https://github.com/tsisar/pi-k3s-cluster.git"
+  target_revision = "ubuntu"
 
   depends_on = [
     module.argo_cd,
