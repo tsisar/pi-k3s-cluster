@@ -1,0 +1,5 @@
+---
+# Dashboards role defaults
+dashboards_linux_system_template_url: "https://raw.githubusercontent.com/influxdata/community-templates/master/linux_system/linux_system.yml"
+dashboards_telegraf_bucket_id: "3dcfe843f9a42487"
+dashboards_telegraf_retention_hours: 720

@@ -1,0 +1,157 @@
+---
+# Main site playbook - orchestrates the entire cluster setup
+# 0. Test connection
+- name: Test connection to all hosts
+  hosts: ser
+  become: true
+  tasks:
+    - name: Test connection
+      ansible.builtin.ping
+
+# 1. Upgrade Ubuntu (based on upgrade_type variable)
+- name: Normal Ubuntu upgrade
+  hosts: ser
+  become: true
+  tasks:
+    - name: Update package cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: true
+  when: 
+    - upgrade_type == "normal"
+    - upgrade_include_packages | default(true)
+
+- name: Security Ubuntu upgrade
+  hosts: ser
+  become: true
+  tasks:
+    - name: Include security upgrade tasks
+      ansible.builtin.include_tasks: upgrade-security.yml
+  when: upgrade_type == "security"
+
+- name: Safe Ubuntu upgrade
+  hosts: ser
+  become: true
+  tasks:
+    - name: Include safe upgrade tasks
+      ansible.builtin.include_tasks: upgrade-ubuntu-safe.yml
+  when: upgrade_type == "safe"
+
+- name: Skip package updates
+  hosts: ser
+  become: true
+  tasks:
+    - name: Skip package updates
+      ansible.builtin.debug:
+        msg: "Skipping package updates as upgrade_include_packages is set to false"
+  when: upgrade_include_packages | default(true) == false
+
+- name: Skip upgrade
+  hosts: ser
+  become: true
+  tasks:
+    - name: Skip upgrade
+      ansible.builtin.debug:
+        msg: "Skipping upgrade as upgrade_type is set to 'none'"
+  when: upgrade_type == "none"
+
+# 2. Setup Ubuntu base configuration
+- name: Setup Ubuntu 24.04 base configuration
+  hosts: ser
+  become: true
+  roles:
+    - common
+    - ubuntu
+
+# 3. Install K3s cluster
+- name: Install K3s cluster
+  hosts: ser
+  become: true
+  roles:
+    - k3s
+
+# 4. Label K3s nodes with role and CPU type
+- name: Label K3s nodes with role and CPU type
+  hosts: ser
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Determine node role
+      ansible.builtin.set_fact:
+        node_role: "{{ 'master' if inventory_hostname in groups['master'] else 'worker' }}"
+
+    - name: Label node with role
+      ansible.builtin.shell: |
+        kubectl label nodes {{ new_hostname }} node-role={{ node_role }} --overwrite
+      delegate_to: "{{ groups['master'][0] }}"
+
+    - name: Label node with CPU type
+      ansible.builtin.shell: |
+        kubectl label nodes {{ new_hostname }} node-type={{ node_type }} --overwrite
+      delegate_to: "{{ groups['master'][0] }}"
+      when: node_type is defined
+
+    - name: Display node labels
+      ansible.builtin.shell: |
+        kubectl get nodes --show-labels | grep {{ new_hostname }}
+      delegate_to: "{{ groups['master'][0] }}"
+      register: node_labels
+
+    - name: Show node labels
+      ansible.builtin.debug:
+        msg: "{{ node_labels.stdout }}"
+
+# 5. Copy cluster config to local machine
+- name: Copy cluster config to local machine
+  hosts: master
+  become: false
+  gather_facts: true
+  roles:
+    - copy-config
+
+# 6. Setup monitoring (based on monitoring_type variable)
+- name: Setup Netdata monitoring
+  hosts: ser
+  become: true
+  roles:
+    - netdata
+  vars:
+    # Set netdata_api_key for workers after master is configured
+    netdata_api_key: "{{ hostvars[groups['master'][0]]['final_api_key'] | default('') }}"
+  when: monitoring_type in ["netdata", "both"]
+
+- name: Setup InfluxDB monitoring stack
+  hosts: master
+  become: true
+  roles:
+    - influxdb
+  when: monitoring_type in ["influxdb", "both"]
+
+- name: Setup Telegraf on all nodes
+  hosts: ser
+  become: true
+  roles:
+    - telegraf
+  when: monitoring_type in ["influxdb", "both"]
+
+- name: Import dashboards and templates
+  hosts: master
+  become: true
+  roles:
+    - dashboards
+  when: monitoring_type in ["influxdb", "both"]
+
+# 7. Setup CRDs for Terraform
+- name: Setup CRDs for Terraform
+  hosts: master
+  become: true
+  roles:
+    - gateway-api
+    - cert-manager
+    - argocd

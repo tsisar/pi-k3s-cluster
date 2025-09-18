@@ -1,0 +1,11 @@
+---
+# InfluxDB role defaults
+influxdb_admin_user: "admin"
+influxdb_admin_password: "changeme123"
+influxdb_org: "k3s-cluster"
+influxdb_bucket: "telegraf"
+influxdb_retention: "30d"
+influxdb_port: 8086
+influxdb_gpg_key_url: "https://repos.influxdata.com/influxdata-archive_compat.key"
+influxdb_gpg_key_checksum: "393e8779c89ac8d958f81f942f9ad7fb82a25e133faddaf92e15b16e6ac9ce4c"
+influxdb_repo_url: "https://repos.influxdata.com/debian"

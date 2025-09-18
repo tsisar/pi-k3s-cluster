@@ -1,0 +1,179 @@
+---
+- name: Check if running on Ubuntu 24.04
+  ansible.builtin.fail:
+    msg: "This role is designed for Ubuntu 24.04 only"
+  when: 
+    - ansible_facts['os_family'] != "Debian"
+    - ansible_facts['distribution'] != "Ubuntu"
+    - ansible_facts['distribution_version'] is not version('24.04', '==')
+
+- name: Install required packages
+  ansible.builtin.apt:
+    name:
+      - wget
+      - gpg
+      - software-properties-common
+      - ca-certificates
+      - apt-transport-https
+    state: present
+
+- name: Download InfluxData GPG key
+  ansible.builtin.get_url:
+    url: "{{ influxdb_gpg_key_url }}"
+    dest: /tmp/influxdata-archive_compat.key
+    mode: '0644'
+
+- name: Verify GPG key checksum
+  ansible.builtin.shell: |
+    echo '{{ influxdb_gpg_key_checksum }}  influxdata-archive_compat.key' | sha256sum -c
+  args:
+    chdir: /tmp
+  register: gpg_checksum
+  failed_when: gpg_checksum.rc != 0
+
+- name: Add InfluxData GPG key to trusted keys
+  ansible.builtin.shell: |
+    cat /tmp/influxdata-archive_compat.key | gpg --dearmor | tee /etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg > /dev/null
+  args:
+    creates: /etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg
+
+- name: Add InfluxData APT repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg] {{ influxdb_repo_url }} stable main"
+    state: present
+    filename: influxdata
+
+- name: Update package cache after adding repository
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Install InfluxDB 2.x
+  ansible.builtin.apt:
+    name: influxdb2
+    state: present
+
+- name: Create InfluxDB configuration directory
+  ansible.builtin.file:
+    path: /etc/influxdb2
+    state: directory
+    mode: '0755'
+
+- name: Generate default InfluxDB TOML config
+  ansible.builtin.shell: |
+    influx server-config > /etc/influxdb2/config.toml
+  args:
+    creates: /etc/influxdb2/config.toml
+
+- name: Create systemd drop-in dir
+  ansible.builtin.file:
+    path: /etc/systemd/system/influxdb.service.d
+    state: directory
+    mode: '0755'
+
+- name: Set INFLUXD_CONFIG_PATH via systemd drop-in
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/influxdb.service.d/override.conf
+    mode: '0644'
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/bin/influxd
+      Environment=INFLUXD_CONFIG_PATH=/etc/influxdb2/config.toml
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Start and enable InfluxDB service
+  ansible.builtin.systemd:
+    name: influxdb
+    state: started
+    enabled: true
+
+- name: Wait for InfluxDB to be ready
+  ansible.builtin.uri:
+    url: "http://localhost:{{ influxdb_port }}/health"
+    method: GET
+    status_code: 200
+  register: influxdb_health
+  until: influxdb_health.status == 200
+  retries: 30
+  delay: 2
+
+- name: Check if InfluxDB is already initialized
+  ansible.builtin.shell: |
+    influx org list --json | jq -r '.[].name' | grep -q "{{ influxdb_org }}" || echo "not_initialized"
+  register: influxdb_check
+  failed_when: false
+  changed_when: false
+
+- name: Initialize InfluxDB (first time setup)
+  ansible.builtin.shell: |
+    influx setup \
+      --username "{{ influxdb_admin_user }}" \
+      --password "{{ influxdb_admin_password }}" \
+      --org "{{ influxdb_org }}" \
+      --bucket "{{ influxdb_bucket }}" \
+      --retention "{{ influxdb_retention }}" \
+      --force
+  when: influxdb_check.stdout == "not_initialized"
+  register: influxdb_setup
+  failed_when: influxdb_setup.rc != 0 and "instance has already been set up" not in influxdb_setup.stderr
+  changed_when: influxdb_setup.rc == 0
+
+- name: Create Telegraf configuration token
+  ansible.builtin.shell: |
+    influx auth create \
+      --org "{{ influxdb_org }}" \
+      --all-access \
+      --description "Telegraf token for {{ inventory_hostname }}"
+  register: telegraf_token_result
+  when: influxdb_check.stdout == "not_initialized"
+
+- name: Extract Telegraf token
+  ansible.builtin.set_fact:
+    telegraf_token: "{{ telegraf_token_result.stdout_lines[0] | regex_search('token\\s+(\\S+)', '\\1') }}"
+  when:
+    - influxdb_check.stdout == "not_initialized"
+    - telegraf_token_result.stdout_lines is defined
+
+- name: Allow InfluxDB port in UFW firewall (if ufw present)
+  community.general.ufw:
+    rule: allow
+    port: "{{ influxdb_port }}"
+    proto: tcp
+  when: "'ufw' in (ansible_facts.packages | default({}))"
+
+- name: Create InfluxDB status check script
+  ansible.builtin.copy:
+    dest: /usr/local/bin/check-influxdb.sh
+    content: |
+      #!/bin/bash
+      # InfluxDB health check script
+      if curl -s http://localhost:{{ influxdb_port }}/health > /dev/null; then
+          echo "InfluxDB is running and healthy"
+          exit 0
+      else
+          echo "InfluxDB is not responding"
+          exit 1
+      fi
+    mode: '0755'
+
+- name: Display InfluxDB setup information
+  ansible.builtin.debug:
+    msg: |
+      InfluxDB has been successfully installed and configured!
+
+      Access Information:
+      - Web UI: http://{{ ansible_host }}:{{ influxdb_port }}
+      - Username: {{ influxdb_admin_user }}
+      - Password: {{ influxdb_admin_password }}
+      - Organization: {{ influxdb_org }}
+      - Bucket: {{ influxdb_bucket }}
+      - Retention: {{ influxdb_retention }}
+
+      {% if telegraf_token is defined %}
+      Telegraf Token: {{ telegraf_token }}
+      {% endif %}
+
+      To check InfluxDB status: /usr/local/bin/check-influxdb.sh

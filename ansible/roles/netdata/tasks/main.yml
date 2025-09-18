@@ -1,0 +1,72 @@
+---
+- name: Check if running on Ubuntu
+  ansible.builtin.fail:
+    msg: "This role is designed for Ubuntu 24.04 only"
+  when: ansible_distribution != "Ubuntu" or ansible_distribution_version != "24.04"
+
+- name: Determine if this is a master node
+  ansible.builtin.set_fact:
+    is_master: "{{ inventory_hostname in groups['master'] }}"
+
+- name: Include master tasks
+  ansible.builtin.include_tasks: master.yml
+  when: is_master
+
+- name: Include worker tasks
+  ansible.builtin.include_tasks: worker.yml
+  when: not is_master
+
+- name: Install Netdata dependencies
+  ansible.builtin.apt:
+    name:
+      - zlib1g-dev
+      - uuid-dev
+      - libmnl-dev
+      - libuv1-dev
+      - liblz4-dev
+      - libssl-dev
+      - cmake
+      - gcc
+      - g++
+      - make
+      - pkg-config
+      - git
+      - curl
+      - jq
+      - netcat-openbsd
+    state: present
+    update_cache: true
+
+- name: Download Netdata kickstart script
+  ansible.builtin.get_url:
+    url: "{{ netdata_kickstart_url }}"
+    dest: /tmp/netdata-kickstart.sh
+    mode: '0755'
+
+- name: Install Netdata
+  ansible.builtin.shell: sh /tmp/netdata-kickstart.sh {{ netdata_install_args }}
+  args:
+    creates: /usr/sbin/netdata
+
+- name: Ensure Netdata service is enabled and started
+  ansible.builtin.systemd:
+    name: netdata
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Create Netdata stream configuration directory
+  ansible.builtin.file:
+    path: /etc/netdata
+    state: directory
+    mode: '0755'
+
+- name: Clean up kickstart script
+  ansible.builtin.file:
+    path: /tmp/netdata-kickstart.sh
+    state: absent
+
+- name: Verify Netdata is running
+  ansible.builtin.systemd:
+    name: netdata
+    state: started

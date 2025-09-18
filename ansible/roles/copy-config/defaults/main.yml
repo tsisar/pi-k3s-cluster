@@ -1,0 +1,5 @@
+---
+# Default variables for copy-config role
+kube_context_name: "local-k3s"
+local_kube_dir: "{{ lookup('env','HOME') }}/.kube"
+local_kubeconfig: "{{ local_kube_dir }}/config"

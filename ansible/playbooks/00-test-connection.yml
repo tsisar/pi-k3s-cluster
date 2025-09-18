@@ -1,0 +1,8 @@
+---
+# 0. Test connection to all hosts
+- name: Test connection to all hosts
+  hosts: ser
+  become: true
+  tasks:
+    - name: Test connection
+      ansible.builtin.ping:

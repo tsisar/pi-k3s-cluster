@@ -1,0 +1,19 @@
+---
+galaxy_info:
+  author: k3s-cluster
+  description: Telegraf monitoring agent installation and configuration role
+  company: k3s-cluster
+  license: MIT
+  min_ansible_version: 2.9
+  platforms:
+    - name: Ubuntu
+      versions:
+        - 24.04
+  galaxy_tags:
+    - telegraf
+    - monitoring
+    - metrics
+    - influxdb
+
+dependencies:
+  - role: common

@@ -1,0 +1,27 @@
+---
+# Ubuntu role defaults
+ubuntu_dns_servers:
+  - 192.168.88.1
+  - 8.8.8.8
+  - 1.1.1.1
+
+ubuntu_domain: k3s-test.local
+
+ubuntu_kernel_modules:
+  - br_netfilter
+  - overlay
+  - nf_conntrack
+
+ubuntu_sysctl_settings:
+  net.bridge.bridge-nf-call-iptables: 1
+  net.ipv4.ip_forward: 1
+  net.ipv6.conf.all.disable_ipv6: 1
+  net.ipv6.conf.default.disable_ipv6: 1
+  vm.swappiness: 0
+  vm.overcommit_memory: 1
+  vm.panic_on_oom: 0
+  fs.inotify.max_user_instances: 8192
+  fs.inotify.max_user_watches: 1048576
+  fs.file-max: 52706963
+  fs.nr_open: 52706963
+  net.netfilter.nf_conntrack_max: 2310720

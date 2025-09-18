@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  author: k3s-cluster
+  description: K3s cluster installation and configuration role
+  company: k3s-cluster
+  license: MIT
+  min_ansible_version: 2.9
+  platforms:
+    - name: Ubuntu
+      versions:
+        - 24.04
+  galaxy_tags:
+    - kubernetes
+    - k3s
+    - container
+
+dependencies: []

@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  author: pi-k3s-cluster
+  description: Common role for basic system configuration
+  company: pi-k3s-cluster
+  license: MIT
+  min_ansible_version: 2.9
+  platforms:
+    - name: Ubuntu
+      versions:
+        - 24.04
+  galaxy_tags:
+    - system
+    - common
+    - ubuntu
+
+dependencies: []

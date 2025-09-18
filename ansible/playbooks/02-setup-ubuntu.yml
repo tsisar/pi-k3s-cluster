@@ -1,0 +1,8 @@
+---
+# 2. Setup Ubuntu base configuration
+- name: Setup Ubuntu 24.04 base configuration
+  hosts: ser
+  become: true
+  roles:
+    - common
+    - ubuntu

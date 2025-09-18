@@ -1,0 +1,70 @@
+---
+- name: Fetch kubeconfig from master node
+  ansible.builtin.fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: /tmp/kubeconfig-{{ inventory_hostname }}
+    flat: true
+
+- name: Replace 127.0.0.1 with actual IP in kubeconfig
+  ansible.builtin.replace:
+    path: /tmp/kubeconfig-{{ inventory_hostname }}
+    regexp: '127\.0\.0\.1'
+    replace: '{{ hostvars[inventory_hostname].ansible_host }}'
+  delegate_to: localhost
+
+- name: Rename 'default' context/cluster/user to "{{ kube_context_name }}"
+  ansible.builtin.replace:
+    path: /tmp/kubeconfig-{{ inventory_hostname }}
+    regexp: '\b(default)\b'
+    replace: '{{ kube_context_name }}'
+  delegate_to: localhost
+
+- name: Ensure ~/.kube directory exists
+  ansible.builtin.file:
+    path: "{{ local_kube_dir }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+
+- name: Ensure ~/.kube/config exists if missing
+  ansible.builtin.file:
+    path: "{{ local_kubeconfig }}"
+    state: touch
+    mode: '0600'
+  delegate_to: localhost
+
+- name: Backup existing kubeconfig
+  ansible.builtin.copy:
+    src: "{{ local_kubeconfig }}"
+    dest: "{{ local_kubeconfig }}.bak.{{ ansible_date_time.epoch | default('unknown') }}"
+  ignore_errors: true
+  delegate_to: localhost
+  when: ansible_date_time is defined
+
+- name: Merge new kubeconfig with existing config
+  ansible.builtin.shell: |
+    KUBECONFIG=/tmp/kubeconfig-{{ inventory_hostname }}:{{ local_kubeconfig }} \
+    kubectl config view --flatten > /tmp/merged_kubeconfig && \
+    mv /tmp/merged_kubeconfig {{ local_kubeconfig }}
+  args:
+    executable: /bin/bash
+  delegate_to: localhost
+
+- name: Set correct permissions on kubeconfig
+  ansible.builtin.file:
+    path: "{{ local_kubeconfig }}"
+    mode: '0600'
+  delegate_to: localhost
+
+- name: Clean up temporary kubeconfig file
+  ansible.builtin.file:
+    path: /tmp/kubeconfig-{{ inventory_hostname }}
+    state: absent
+  delegate_to: localhost
+
+- name: Display kubeconfig location
+  ansible.builtin.debug:
+    msg: |
+      Kubeconfig has been copied to: {{ local_kubeconfig }}
+      Context name: {{ kube_context_name }}
+      You can now use: kubectl --context={{ kube_context_name }} get nodes

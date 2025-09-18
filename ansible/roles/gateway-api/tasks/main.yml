@@ -1,0 +1,19 @@
+---
+# Gateway API CRDs installation
+- name: Install Gateway API CRDs
+  ansible.builtin.shell: |
+    kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.0.0/standard-install.yaml
+  register: gateway_api_result
+  changed_when: gateway_api_result.rc == 0
+
+- name: Wait for Gateway API CRDs to be ready
+  ansible.builtin.shell: |
+    kubectl get crd gateways.gateway.networking.k8s.io
+  register: gateway_crd_check
+  until: gateway_crd_check.rc == 0
+  retries: 10
+  delay: 5
+
+- name: Display Gateway API installation result
+  ansible.builtin.debug:
+    msg: "Gateway API CRDs installed successfully"

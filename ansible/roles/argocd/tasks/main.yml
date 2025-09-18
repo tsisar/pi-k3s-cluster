@@ -1,0 +1,21 @@
+---
+# ArgoCD CRDs installation
+- name: Install ArgoCD CRDs
+  ansible.builtin.shell: |
+    kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/crds/application-crd.yaml
+    kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/crds/appproject-crd.yaml
+    kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/crds/applicationset-crd.yaml
+  register: argocd_result
+  changed_when: argocd_result.rc == 0
+
+- name: Wait for ArgoCD CRDs to be ready
+  ansible.builtin.shell: |
+    kubectl get crd applications.argoproj.io
+  register: argocd_crd_check
+  until: argocd_crd_check.rc == 0
+  retries: 10
+  delay: 5
+
+- name: Display ArgoCD installation result
+  ansible.builtin.debug:
+    msg: "ArgoCD CRDs installed successfully"

@@ -1,0 +1,19 @@
+---
+# cert-manager CRDs installation
+- name: Install cert-manager CRDs
+  ansible.builtin.shell: |
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.0/cert-manager.crds.yaml
+  register: cert_manager_result
+  changed_when: cert_manager_result.rc == 0
+
+- name: Wait for cert-manager CRDs to be ready
+  ansible.builtin.shell: |
+    kubectl get crd certificates.cert-manager.io
+  register: cert_crd_check
+  until: cert_crd_check.rc == 0
+  retries: 10
+  delay: 5
+
+- name: Display cert-manager installation result
+  ansible.builtin.debug:
+    msg: "cert-manager CRDs installed successfully"
