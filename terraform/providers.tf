@@ -23,4 +23,5 @@ provider "argocd" {
   server_addr = try(module.argo_cd["enabled"].host, "https://argo.example.com")
   username    = try(module.argo_cd["enabled"].username, "admin")
   password    = try(module.argo_cd["enabled"].password, "")
+  insecure    = true
 }
