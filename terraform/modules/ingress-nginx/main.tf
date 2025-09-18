@@ -14,3 +14,10 @@ resource "helm_release" "ingress_nginx" {
     file("${path.module}/values.yaml")
   ]
 }
+
+# Create cluster-wide Gateway for Gateway API
+resource "kubernetes_manifest" "cluster_gateway" {
+  manifest = yamldecode(file("${path.module}/gateway.yaml"))
+  
+  depends_on = [helm_release.ingress_nginx]
+}

@@ -10,8 +10,13 @@ variable "namespace" {
   default     = "demo"
 }
 
-variable "repository" {
+variable "repo_url" {
   description = "GitHub repository URL"
+  type        = string
+}
+
+variable "target_revision" {
+  description = "GitHub target revision (branch)"
   type        = string
 }
 

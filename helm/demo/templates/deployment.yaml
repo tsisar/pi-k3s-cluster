@@ -1,7 +1,7 @@
-apiVersion: argoproj.io/v1alpha1
-kind: Rollout
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-rollout
+  name: {{ .Release.Name }}-deployment
   labels:
     app.kubernetes.io/instance: {{ .Release.Namespace }}
     app.kubernetes.io/name: {{ .Release.Name }}
@@ -11,6 +11,11 @@ spec:
   selector:
     matchLabels:
       app: {{ .Release.Name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   template:
     metadata:
       labels:
@@ -39,17 +44,3 @@ spec:
             periodSeconds: 20
           resources:
 {{ toYaml .Values.resources | indent 12 }}
-  strategy:
-    canary:
-      canaryService: {{ .Release.Name }}-canary
-      stableService: {{ .Release.Name }}-stable
-      trafficRouting:
-        nginx:
-          stableIngress: {{ .Release.Name }}-ingress
-      steps:
-      {{- range .Values.rollout.canary.steps }}
-        - setWeight: {{ .weight }}
-        {{- if .pause }}
-        - pause: { }
-        {{- end }}
-      {{- end }}

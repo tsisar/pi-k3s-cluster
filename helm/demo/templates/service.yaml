@@ -1,27 +1,14 @@
-# Stable service
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-stable
+  name: {{ .Release.Name }}-service
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Namespace }}
+    app.kubernetes.io/name: {{ .Release.Name }}
 spec:
   selector:
     app: {{ .Release.Name }}
   ports:
     - name: http
-      port: 8080
-      targetPort: 8080
-
----
-
-# Canary service
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ .Release.Name }}-canary
-spec:
-  selector:
-    app: {{ .Release.Name }}
-  ports:
-    - name: http
-      port: 8080
+      port: 80
       targetPort: 8080
