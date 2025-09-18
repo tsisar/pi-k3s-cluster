@@ -1,0 +1,10 @@
+---
+# Netdata role defaults
+netdata_allow_from: "192.168.88.*"
+netdata_memory_mode: "save"
+netdata_history: "3600"
+netdata_timeout: "60"
+netdata_buffer_size: "10485760"
+netdata_reconnect_delay: "5"
+netdata_kickstart_url: "https://get.netdata.cloud/kickstart.sh"
+netdata_install_args: "--stable-channel --disable-telemetry"

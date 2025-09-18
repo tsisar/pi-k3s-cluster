@@ -1,0 +1,97 @@
+---
+- name: Check if running on Ubuntu 24.04
+  fail:
+    msg: "This role is designed for Ubuntu 24.04 only"
+  when: 
+    - ansible_facts['os_family'] != "Debian"
+    - ansible_facts['distribution'] != "Ubuntu"
+    - ansible_facts['distribution_version'] is not version('24.04', '==')
+
+- name: Configure systemd-resolved
+  block:
+    - name: Ensure systemd-resolved is enabled and running
+      ansible.builtin.systemd:
+        name: systemd-resolved
+        enabled: true
+        state: started
+
+    - name: Configure systemd-resolved for better DNS resolution
+      ansible.builtin.copy:
+        dest: /etc/systemd/resolved.conf
+        content: |
+          [Resolve]
+          DNS={{ ubuntu_dns_servers | join(' ') }}
+          FallbackDNS=8.8.8.8 1.1.1.1
+          Domains={{ ubuntu_domain }}
+          DNSSEC=no
+          DNSOverTLS=no
+          MulticastDNS=no
+          LLMNR=no
+          Cache=yes
+          DNSStubListener=yes
+          ReadEtcHosts=yes
+        backup: yes
+
+    - name: Restart systemd-resolved
+      ansible.builtin.systemd:
+        name: systemd-resolved
+        state: restarted
+
+- name: Load kernel modules
+  block:
+    - name: Ensure kernel modules are loaded now
+      community.general.modprobe:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ ubuntu_kernel_modules }}"
+
+    - name: Ensure kernel modules load on boot
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          {% for module in ubuntu_kernel_modules %}
+          {{ module }}
+          {% endfor %}
+        backup: yes
+
+- name: Configure sysctl settings
+  block:
+    - name: Check if nf_conntrack_max sysctl is present
+      ansible.builtin.stat:
+        path: /proc/sys/net/netfilter/nf_conntrack_max
+      register: nf_conntrack_sysctl
+
+    - name: Wait for nf_conntrack_max to appear (up to 5s)
+      ansible.builtin.wait_for:
+        path: /proc/sys/net/netfilter/nf_conntrack_max
+        state: present
+        timeout: 5
+      when: not nf_conntrack_sysctl.stat.exists
+
+    - name: Configure sysctl settings
+      ansible.posix.sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: true
+      loop: "{{ ubuntu_sysctl_settings | dict2items }}"
+      when: >
+        (item.key != 'net.netfilter.nf_conntrack_max') or
+        (nf_conntrack_sysctl.stat.exists | default(false)) or
+        (lookup('ansible.builtin.file', '/proc/sys/net/netfilter/nf_conntrack_max', errors='ignore') is not none)
+
+    - name: Persist sysctl changes
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-kubernetes-cri.conf
+        content: |
+          {% for key, value in ubuntu_sysctl_settings.items() %}
+          {{ key }} = {{ value }}
+          {% endfor %}
+        backup: yes
+
+- name: Reboot if required
+  ansible.builtin.reboot:
+    msg: "Rebooting after Ubuntu 24 specific configurations"
+    pre_reboot_delay: 5
+    reboot_timeout: 300
+    post_reboot_delay: 15

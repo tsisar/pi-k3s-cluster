@@ -1,0 +1,37 @@
+---
+- name: Set final API key for workers
+  ansible.builtin.set_fact:
+    final_api_key: "{{ netdata_api_key }}"
+  when: 
+    - netdata_api_key is defined and netdata_api_key != ""
+
+- name: Fail if worker doesn't have API key
+  ansible.builtin.fail:
+    msg: "netdata_api_key variable must be set for workers. Run the master playbook first to get the API key."
+  when: 
+    - netdata_api_key is not defined or netdata_api_key == ""
+
+- name: Configure Netdata stream for worker
+  ansible.builtin.copy:
+    dest: /etc/netdata/stream.conf
+    content: |
+      [stream]
+          enabled = yes
+          destination = {{ hostvars[groups['master'][0]]['ansible_host'] }}:19999
+          api key = {{ final_api_key }}
+          timeout seconds = {{ netdata_timeout }}
+          buffer size bytes = {{ netdata_buffer_size }}
+          reconnect delay seconds = {{ netdata_reconnect_delay }}
+    mode: '0644'
+  notify: restart netdata
+
+- name: Display worker information
+  ansible.builtin.debug:
+    msg: |
+      Netdata Worker {{ inventory_hostname }} is now configured to stream to master.
+      
+      Master IP: {{ hostvars[groups['master'][0]]['ansible_host'] }}
+      API Key: {{ final_api_key }}
+      
+      Check the master dashboard at: http://{{ hostvars[groups['master'][0]]['ansible_host'] }}:19999
+      to verify this worker appears in the Nodes list.

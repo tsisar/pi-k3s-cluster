@@ -1,0 +1,18 @@
+---
+galaxy_info:
+  author: k3s-cluster
+  description: cert-manager CRDs installation role
+  company: k3s-cluster
+  license: MIT
+  min_ansible_version: 2.9
+  platforms:
+    - name: Ubuntu
+      versions:
+        - 24.04
+  galaxy_tags:
+    - kubernetes
+    - cert-manager
+    - crd
+    - tls
+
+dependencies: []

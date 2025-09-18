@@ -1,0 +1,45 @@
+---
+- name: Install common packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+    update_cache: true
+
+- name: Ensure required collections are present
+  ansible.builtin.command: >
+    ansible-galaxy collection install
+    ansible.posix
+    community.general
+  changed_when: false
+  run_once: true
+  delegate_to: localhost
+  become: false
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+
+- name: Install chrony
+  ansible.builtin.apt:
+    name: chrony
+    state: present
+    update_cache: true
+
+- name: Configure chrony
+  ansible.builtin.copy:
+    dest: /etc/chrony/chrony.conf
+    content: |
+      {% for server in common_ntp_servers %}
+      pool {{ server }} iburst
+      {% endfor %}
+      driftfile /var/lib/chrony/drift
+      makestep 1.0 3
+      rtcsync
+      logdir /var/log/chrony
+    backup: yes
+
+- name: Start and enable chrony
+  ansible.builtin.systemd:
+    name: chrony
+    state: started
+    enabled: true

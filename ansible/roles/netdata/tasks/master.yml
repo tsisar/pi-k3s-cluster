@@ -1,0 +1,34 @@
+---
+- name: Generate API key for master if not provided
+  ansible.builtin.shell: uuidgen
+  register: generated_api_key
+  when: 
+    - netdata_api_key is not defined or netdata_api_key == ""
+
+- name: Set final API key for master
+  ansible.builtin.set_fact:
+    final_api_key: "{{ netdata_api_key if netdata_api_key is defined and netdata_api_key != '' else generated_api_key.stdout }}"
+
+- name: Configure Netdata stream for master
+  ansible.builtin.copy:
+    dest: /etc/netdata/stream.conf
+    content: |
+      [{{ final_api_key }}]
+          enabled = yes
+          allow from = {{ netdata_allow_from }}
+          default memory mode = {{ netdata_memory_mode }}
+          default history = {{ netdata_history }}
+          enable replication = yes
+    mode: '0644'
+  notify: restart netdata
+
+- name: Display master information
+  ansible.builtin.debug:
+    msg: |
+      Netdata Master {{ inventory_hostname }} is now running and ready to accept connections from workers.
+      
+      Access the dashboard at: http://{{ ansible_host }}:19999
+      API Key for workers: {{ final_api_key }}
+      
+      Workers should connect to: {{ ansible_host }}:19999
+      Using API Key: {{ final_api_key }}

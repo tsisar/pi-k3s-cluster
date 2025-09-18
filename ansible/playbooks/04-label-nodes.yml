@@ -1,0 +1,32 @@
+---
+# 4. Label K3s nodes with role and CPU type
+- name: Label K3s nodes with role and CPU type
+  hosts: ser
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Determine node role
+      ansible.builtin.set_fact:
+        node_role: "{{ 'master' if inventory_hostname in groups['master'] else 'worker' }}"
+
+    - name: Label node with role
+      ansible.builtin.shell: |
+        kubectl label nodes {{ new_hostname }} node-role={{ node_role }} --overwrite
+      delegate_to: "{{ groups['master'][0] }}"
+
+    - name: Label node with CPU type
+      ansible.builtin.shell: |
+        kubectl label nodes {{ new_hostname }} node-type={{ node_type }} --overwrite
+      delegate_to: "{{ groups['master'][0] }}"
+      when: node_type is defined
+
+    - name: Display node labels
+      ansible.builtin.shell: |
+        kubectl get nodes --show-labels | grep {{ new_hostname }}
+      delegate_to: "{{ groups['master'][0] }}"
+      register: node_labels
+
+    - name: Show node labels
+      ansible.builtin.debug:
+        msg: "{{ node_labels.stdout }}"

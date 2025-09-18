@@ -1,0 +1,7 @@
+---
+# 3. Install K3s cluster
+- name: Install K3s cluster
+  hosts: ser
+  become: true
+  roles:
+    - k3s

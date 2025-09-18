@@ -1,0 +1,12 @@
+---
+# Telegraf role defaults
+telegraf_interval: "10s"
+telegraf_metric_batch_size: 1000
+telegraf_metric_buffer_limit: 10000
+telegraf_flush_interval: "10s"
+telegraf_influxdb_url: "http://{{ hostvars[groups['master'][0]]['ansible_host'] }}:8086"
+telegraf_influxdb_org: "k3s-cluster"
+telegraf_influxdb_bucket: "telegraf"
+telegraf_network_interfaces: ["eth0", "ens*", "enp*", "eno*"]
+telegraf_disk_ignore_fs: ["tmpfs", "devtmpfs", "devfs"]
+telegraf_smart_devices: ["/dev/sd*", "/dev/nvme*"]

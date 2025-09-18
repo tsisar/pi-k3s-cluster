@@ -1,0 +1,24 @@
+---
+# Global variables for all hosts
+ansible_user: k3s
+ansible_password: k3s
+ansible_become: true
+ansible_become_method: sudo
+ansible_become_password: k3s
+ansible_python_interpreter: /usr/bin/python3
+ansible_ssh_common_args: -o StrictHostKeyChecking=no
+
+# K3s cluster settings
+kube_context_name: k3s-cluster
+
+# Monitoring configuration
+# Options: "netdata", "influxdb", "both", "none"
+monitoring_type: "both"
+
+# Upgrade configuration
+# Options: "normal", "security", "safe", "none"
+upgrade_type: "safe"
+
+# Package update configuration
+# Options: true, false
+upgrade_include_packages: true

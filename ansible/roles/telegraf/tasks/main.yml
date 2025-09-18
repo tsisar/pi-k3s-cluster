@@ -1,0 +1,221 @@
+---
+- name: Check if running on Ubuntu 24.04
+  ansible.builtin.fail:
+    msg: "This role is designed for Ubuntu 24.04 only"
+  when: ansible_distribution != "Ubuntu" or ansible_distribution_version != "24.04"
+
+- name: Set master node variables
+  ansible.builtin.set_fact:
+    master_node: "{{ groups['master'][0] }}"
+    influxdb_url: "{{ telegraf_influxdb_url }}"
+
+- name: Get existing Telegraf token for this host
+  ansible.builtin.shell: |
+    influx auth list --json | jq -r '.[] | select(.description | contains("{{ inventory_hostname }}")) | .token'
+  register: existing_token
+  delegate_to: "{{ master_node }}"
+  failed_when: false
+
+- name: Create new Telegraf token if none exists
+  ansible.builtin.shell: |
+    influx auth create \
+      --org "{{ telegraf_influxdb_org }}" \
+      --all-access \
+      --description "Telegraf token for {{ inventory_hostname }}"
+  register: new_token_result
+  delegate_to: "{{ master_node }}"
+  when: existing_token.stdout == ""
+
+- name: Extract token from new token creation
+  ansible.builtin.set_fact:
+    telegraf_token: "{{ new_token_result.stdout_lines[0] | regex_search('token\\s+(\\S+)', '\\1') }}"
+  when: 
+    - existing_token.stdout == ""
+    - new_token_result.stdout_lines is defined
+    - new_token_result.stdout_lines | length > 0
+    - not ansible_check_mode
+
+- name: Use existing token
+  ansible.builtin.set_fact:
+    telegraf_token: "{{ existing_token.stdout }}"
+  when: existing_token.stdout != ""
+
+- name: Set dummy token for check mode
+  ansible.builtin.set_fact:
+    telegraf_token: "dummy-token-for-check-mode"
+  when: ansible_check_mode
+
+- name: Install dependencies
+  ansible.builtin.apt:
+    name:
+      - wget
+      - gpg
+      - software-properties-common
+      - curl
+      - ca-certificates
+      - smartmontools
+      - lm-sensors
+    state: present
+    update_cache: true
+
+- name: Add InfluxData GPG key
+  ansible.builtin.shell: |
+    wget -qO- https://repos.influxdata.com/influxdata-archive_compat.key | tee /etc/apt/keyrings/influxdata-archive_compat.key
+  args:
+    creates: /etc/apt/keyrings/influxdata-archive_compat.key
+
+- name: Add InfluxData APT repository
+  ansible.builtin.shell: |
+    echo "deb [signed-by=/etc/apt/keyrings/influxdata-archive_compat.key] https://repos.influxdata.com/debian stable main" > /etc/apt/sources.list.d/influxdata.list
+  args:
+    creates: /etc/apt/sources.list.d/influxdata.list
+
+- name: Update APT package index
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: Install Telegraf
+  ansible.builtin.apt:
+    name: telegraf
+    state: present
+
+- name: Create Telegraf config
+  ansible.builtin.copy:
+    dest: /etc/telegraf/telegraf.conf
+    content: |
+      [agent]
+        interval = "{{ telegraf_interval }}"
+        round_interval = true
+        metric_batch_size = {{ telegraf_metric_batch_size }}
+        metric_buffer_limit = {{ telegraf_metric_buffer_limit }}
+        collection_jitter = "0s"
+        flush_interval = "{{ telegraf_flush_interval }}"
+        flush_jitter = "0s"
+        precision = ""
+        hostname = ""
+        omit_hostname = false
+
+      [[outputs.influxdb_v2]]
+        urls = ["{{ influxdb_url }}"]
+        token = '{{ telegraf_token }}'
+        organization = "{{ telegraf_influxdb_org }}"
+        bucket = "{{ telegraf_influxdb_bucket }}"
+
+      [[inputs.cpu]]
+        percpu = true
+        totalcpu = true
+        collect_cpu_time = false
+        report_active = false
+
+      [[inputs.mem]]
+
+      [[inputs.disk]]
+        ignore_fs = {{ telegraf_disk_ignore_fs | to_json }}
+
+      [[inputs.diskio]]
+
+      [[inputs.net]]
+        interfaces = {{ telegraf_network_interfaces | to_json }}
+
+      [[inputs.system]]
+
+      [[inputs.swap]]
+
+      [[inputs.netstat]]
+
+      [[inputs.processes]]
+
+      [[inputs.kernel]]
+
+      [[inputs.systemd_units]]
+        unittype = "service"
+
+      [[inputs.tail]]
+        files = ["/var/log/syslog"]
+        from_beginning = false
+        data_format = "grok"
+        grok_patterns = ["%{SYSLOGTIMESTAMP:timestamp} %{IPORHOST:hostname} %{PROG:program}: %{GREEDYDATA:message}"]
+
+      [[inputs.smart]]
+        devices = {{ telegraf_smart_devices | to_json }}
+        attributes = true
+
+      [global_tags]
+        host = "{{ inventory_hostname }}"
+
+- name: Detect and configure sensors
+  ansible.builtin.shell: sensors-detect --auto
+  ignore_errors: yes
+
+- name: Add telegraf user to necessary groups
+  ansible.builtin.user:
+    name: telegraf
+    groups: adm,systemd-journal,disk
+    append: yes
+
+- name: Ensure telegraf can read system logs
+  ansible.builtin.file:
+    path: /var/log/syslog
+    mode: '0644'
+    owner: syslog
+    group: adm
+
+- name: Create telegraf log directory
+  ansible.builtin.file:
+    path: /var/log/telegraf
+    state: directory
+    owner: telegraf
+    group: telegraf
+    mode: '0755'
+
+- name: Enable S.M.A.R.T monitoring for all drives
+  ansible.builtin.shell: |
+    for device in /dev/sd* /dev/nvme*; do
+      if [ -b "$device" ]; then
+        smartctl -s on "$device" || true
+      fi
+    done
+  ignore_errors: yes
+
+- name: Create systemd timer for S.M.A.R.T monitoring
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/smart-monitor.service
+    content: |
+      [Unit]
+      Description=S.M.A.R.T Health Check
+      After=multi-user.target
+      
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/check-smart.sh
+      User=root
+    mode: '0644'
+
+- name: Create systemd timer unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/smart-monitor.timer
+    content: |
+      [Unit]
+      Description=Run S.M.A.R.T health check daily
+      Requires=smart-monitor.service
+      
+      [Timer]
+      OnCalendar=daily
+      Persistent=true
+      
+      [Install]
+      WantedBy=timers.target
+    mode: '0644'
+
+- name: Enable and start S.M.A.R.T monitoring timer
+  ansible.builtin.systemd:
+    name: smart-monitor.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Restart telegraf
+  ansible.builtin.systemd:
+    name: telegraf
+    state: restarted
+    enabled: true

@@ -1,0 +1,9 @@
+---
+# 6. Setup CRDs for Terraform
+- name: Setup CRDs for Terraform
+  hosts: master
+  become: true
+  roles:
+    - gateway-api
+    - cert-manager
+    - argocd

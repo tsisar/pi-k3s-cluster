@@ -1,0 +1,6 @@
+---
+# K3s role defaults
+k3s_disable_traefik: true
+k3s_install_url: "https://get.k3s.io"
+k3s_config_path: "/etc/rancher/k3s/k3s.yaml"
+k3s_token_path: "/var/lib/rancher/k3s/server/node-token"

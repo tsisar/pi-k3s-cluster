@@ -1,0 +1,39 @@
+---
+# 1. Upgrade Ubuntu system (based on upgrade_type variable)
+- name: Upgrade Ubuntu system
+  hosts: ser
+  become: true
+  tasks:
+    - name: Update package cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: 
+        - upgrade_type == "normal"
+        - upgrade_include_packages | default(true)
+
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: true
+      when: 
+        - upgrade_type == "normal"
+        - upgrade_include_packages | default(true)
+
+    - name: Include security upgrade tasks
+      ansible.builtin.include_tasks: upgrade-security.yml
+      when: upgrade_type == "security"
+
+    - name: Include safe upgrade tasks
+      ansible.builtin.include_tasks: upgrade-ubuntu-safe.yml
+      when: upgrade_type == "safe"
+
+    - name: Skip package updates
+      ansible.builtin.debug:
+        msg: "Skipping package updates as upgrade_include_packages is set to false"
+      when: upgrade_include_packages | default(true) == false
+
+    - name: Skip upgrade
+      ansible.builtin.debug:
+        msg: "Skipping upgrade as upgrade_type is set to 'none'"
+      when: upgrade_type == "none"

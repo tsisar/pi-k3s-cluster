@@ -1,0 +1,16 @@
+---
+- name: Set master node variables
+  ansible.builtin.set_fact:
+    master_node: "{{ groups['master'][0] }}"
+    k3s_url: "https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443"
+    k3s_token: "{{ hostvars[groups['master'][0]]['k3s_token'] | trim }}"
+
+- name: Install K3s worker
+  ansible.builtin.shell: |
+    curl -sfL {{ k3s_install_url }} | sh -
+  environment:
+    K3S_URL: "{{ k3s_url }}"
+    K3S_TOKEN: "{{ k3s_token }}"
+  args:
+    creates: "{{ k3s_config_path }}"
+

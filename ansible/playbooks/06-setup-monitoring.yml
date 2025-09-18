@@ -1,0 +1,39 @@
+---
+# 6. Setup monitoring (based on monitoring_type variable)
+- name: Setup Netdata monitoring
+  hosts: ser
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Setup Netdata monitoring
+      ansible.builtin.include_role:
+        name: netdata
+      vars:
+        # Set netdata_api_key for workers after master is configured
+        netdata_api_key: "{{ hostvars[groups['master'][0]]['final_api_key'] | default('') }}"
+      when: monitoring_type in ["netdata", "both"]
+
+- name: Setup InfluxDB on master first
+  hosts: master
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Setup InfluxDB monitoring stack
+      ansible.builtin.include_role:
+        name: influxdb
+      when: monitoring_type in ["influxdb", "both"]
+
+    - name: Import dashboards and templates
+      ansible.builtin.include_role:
+        name: dashboards
+      when: monitoring_type in ["influxdb", "both"]
+
+- name: Setup Telegraf on all nodes (after InfluxDB is ready)
+  hosts: ser
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Setup Telegraf on all nodes
+      ansible.builtin.include_role:
+        name: telegraf
+      when: monitoring_type in ["influxdb", "both"]
