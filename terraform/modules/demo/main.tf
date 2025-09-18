@@ -19,33 +19,13 @@ resource "argocd_application" "demo" {
     }
 
     source {
-      repo_url        = var.repository
+      repo_url        = var.repo_url
       path            = "helm/demo"
-      target_revision = "dev"
+      target_revision = var.target_revision
 
       helm {
         release_name = var.name
         value_files = ["values.yaml"]
-        values = yamlencode({
-          rollout = {
-            canary = {
-              steps = [
-                {
-                  weight = 25
-                  pause  = true
-                },
-                {
-                  weight = 50
-                  pause  = true
-                },
-                {
-                  weight = 100
-                  pause  = false
-                }
-              ]
-            }
-          }
-        })
         parameter {
           name  = "ingress.host"
           value = var.host

@@ -62,3 +62,15 @@ module "keycloak" {
   host      = var.hosts.keycloak
   namespace = "keycloak"
 }
+
+# Demo Module
+module "demo" {
+  source     = "./modules/demo"
+  for_each   = var.enabled_modules.demo ? { "enabled" = {} } : {}
+  host       = var.hosts.demo
+  repo_url = "https://github.com/tsisar/pi-k3s-cluster.git"
+
+  depends_on = [
+    module.argo_cd,
+  ]
+}
