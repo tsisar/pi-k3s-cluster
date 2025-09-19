@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: majestic5-root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/resources
+spec:
+  project: default
+  destination:
+    name: in-cluster
+    namespace: majestic5
+  source:
+    repoURL: "git@gitlab.KEY:devops/k8s.git"
+    targetRevision: mass-saas
+    path: "applications/majestic5"
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
