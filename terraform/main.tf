@@ -77,13 +77,35 @@ module "keycloak" {
   namespace = "keycloak"
 }
 
-# Demo Module
-module "demo" {
-  source          = "./modules/demo"
-  for_each        = var.enabled_modules.demo ? { "enabled" = {} } : {}
-  host            = var.hosts.demo
-  repo_url        = "https://github.com/tsisar/pi-k3s-cluster.git"
-  target_revision = "ubuntu"
+resource "argocd_application" "demo" {
+  metadata {
+    name       = "demo-root"
+    namespace  = "argocd"
+  }
 
-  depends_on = [module.argo_cd]
+  spec {
+    project = "default"
+
+    destination {
+      name      = "in-cluster"
+      namespace = "demo"
+    }
+
+    source {
+      repo_url        = "https://github.com/tsisar/pi-k3s-cluster.git"
+      target_revision = "ubuntu"
+      path            = "applications/demo"
+    }
+
+    sync_policy {
+      automated {
+        prune     = true
+        self_heal = true
+      }
+      sync_options = [
+        "CreateNamespace=true",
+        "ApplyOutOfSyncOnly=true",
+      ]
+    }
+  }
 }
