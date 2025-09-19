@@ -1,0 +1,19 @@
+---
+galaxy_info:
+  author: Pavlo Tsisar
+  description: Install Envoy Gateway
+  company: 
+  license: MIT
+  min_ansible_version: 2.9
+  platforms:
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+  galaxy_tags:
+    - kubernetes
+    - envoy
+    - gateway
+    - ingress
+
+dependencies: []

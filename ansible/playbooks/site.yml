@@ -6,7 +6,7 @@
   become: true
   tasks:
     - name: Test connection
-      ansible.builtin.ping
+      ansible.builtin.ping:
 
 # 1. Upgrade Ubuntu (based on upgrade_type variable)
 - name: Normal Ubuntu upgrade
@@ -155,3 +155,4 @@
     - gateway-api
     - cert-manager
     - argocd
+    - envoy-gateway

@@ -9,6 +9,8 @@ resource "kubernetes_namespace" "cert_manager" {
   }
 }
 
+# Install cert-manager using Helm
+# Note: cert-manager CRDs are installed via Ansible (playbook 07-setup-crds.yml)
 resource "helm_release" "cert_manager" {
   name       = "cert-manager"
   repository = "https://charts.jetstack.io"
@@ -19,7 +21,7 @@ resource "helm_release" "cert_manager" {
   set = [
     {
       name  = "installCRDs"
-      value = "true"
+      value = "false"  # CRDs are installed via Ansible
     }
   ]
 

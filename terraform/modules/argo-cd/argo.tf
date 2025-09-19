@@ -26,7 +26,8 @@ resource "kubernetes_namespace" "argo_cd" {
   }
 }
 
-# Helm release for ArgoCD
+# Install ArgoCD using Helm
+# Note: ArgoCD CRDs are installed via Ansible (playbook 07-setup-crds.yml)
 resource "helm_release" "argo_cd" {
   name       = "argocd"
   repository = "https://argoproj.github.io/argo-helm"
@@ -59,25 +60,6 @@ resource "helm_release" "argo_cd" {
   ]
 }
 
-resource "helm_release" "argo_rollouts" {
-  name       = "argo-rollouts"
-  namespace  = "argo-rollouts"
-  repository = "https://argoproj.github.io/argo-helm"
-  chart      = "argo-rollouts"
-  version    = "2.39.6"
-
-  create_namespace = true
-
-  values = [
-    <<-EOF
-      controller:
-        replicaCount: 1
-      dashboard:
-        enabled: true
-    EOF
-  ]
-}
-
 # Ingress resource for Argo CD with Let's Encrypt certificate
 resource "kubernetes_ingress_v1" "argo_cd" {
   metadata {
@@ -88,7 +70,6 @@ resource "kubernetes_ingress_v1" "argo_cd" {
     }
     annotations = {
       "kubernetes.io/ingress.class"                    = "nginx"
-      "cert-manager.io/issuer"                         = "argocd-issuer"
       "nginx.ingress.kubernetes.io/force-ssl-redirect" = "false"
       "nginx.ingress.kubernetes.io/backend-protocol"   = "HTTPS"
     }
@@ -123,36 +104,6 @@ resource "kubernetes_ingress_v1" "argo_cd" {
   depends_on = [
     helm_release.argo_cd
   ]
-}
-
-# Setup issuer based on cert_manager_installed
-resource "kubernetes_manifest" "argocd_issuer" {
-  manifest = {
-    apiVersion = "cert-manager.io/v1"
-    kind       = "Issuer"
-    metadata = {
-      name      = "argocd-issuer"
-      namespace = "argocd"
-    }
-    spec = {
-      acme = {
-        server = var.letsencrypt_server
-        email  = var.email
-        privateKeySecretRef = {
-          name = "argocd-letsencrypt-private-key"
-        }
-        solvers = [
-          {
-            http01 = {
-              ingress = {
-                class = "nginx"
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
 }
 
 output "host" {

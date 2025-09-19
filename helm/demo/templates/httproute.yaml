@@ -8,14 +8,14 @@ metadata:
 spec:
   parentRefs:
     - kind: Gateway
-      name: cluster-gateway
-      namespace: ingress-nginx
+      name: eg
+      namespace: envoy-gateway-system
       sectionName: http
   hostnames:
     - {{ .Values.ingress.host }}
   rules:
     - matches:
-        - path: 
+        - path:
             type: PathPrefix
             value: /
       backendRefs:

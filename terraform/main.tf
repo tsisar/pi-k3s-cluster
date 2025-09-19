@@ -7,24 +7,34 @@ resource "routeros_ip_dns_record" "name_record" {
   address = "192.168.88.30"
   type    = "A"
 }
-# ================= Stage-1 ====================
 
-module "ingress_nginx" {
-  source   = "./modules/ingress-nginx"
-  for_each = var.enabled_modules.ingress_nginx ? { "enabled" = {} } : {}
-}
+# ================= Cluster ====================
 
 module "cert_manager" {
   source   = "./modules/cert-manager"
   for_each = var.enabled_modules.cert_manager ? { "enabled" = {} } : {}
 }
 
-# ================= Stage-2 ====================
-
 module "cluster_issuer" {
   source   = "./modules/cluster-issuer"
   for_each = var.enabled_modules.cluster_issuer ? { "enabled" = {} } : {}
   email    = var.email
+
+  depends_on = [module.cert_manager]
+}
+
+module "ingress_nginx" {
+  source   = "./modules/ingress-nginx"
+  for_each = var.enabled_modules.ingress_nginx ? { "enabled" = {} } : {}
+
+  depends_on = [module.cert_manager]
+}
+
+module "envoy_proxy" {
+  source   = "./modules/envoy"
+  for_each = var.enabled_modules.envoy ? { "enabled" = {} } : {}
+
+  depends_on = [module.cert_manager]
 }
 
 module "monitoring" {
@@ -45,6 +55,8 @@ module "monitoring" {
   smartctl_exporter_image    = "prometheuscommunity/smartctl-exporter:latest"
   smartctl_exporter_interval = "60s"
   smartctl_exporter_rescan   = "10m"
+
+  depends_on = [module.ingress_nginx]
 }
 
 module "argo_cd" {
@@ -54,6 +66,8 @@ module "argo_cd" {
   dex_git_hub_client_secret = var.dex_git_hub_client_secret
   host                      = var.hosts.argo
   email                     = var.email
+
+  depends_on = [module.ingress_nginx]
 }
 
 module "keycloak" {
@@ -71,7 +85,5 @@ module "demo" {
   repo_url        = "https://github.com/tsisar/pi-k3s-cluster.git"
   target_revision = "ubuntu"
 
-  depends_on = [
-    module.argo_cd,
-  ]
+  depends_on = [module.argo_cd]
 }
