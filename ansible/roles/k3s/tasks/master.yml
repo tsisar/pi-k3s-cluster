@@ -21,3 +21,16 @@
       To copy the kubeconfig to your local machine, run:
       ansible-playbook -i inventory/cluster.ini playbooks/copy-cluster-config.yml
 
+- name: Check if Helm is installed
+  ansible.builtin.command: which helm
+  register: helm_check
+  failed_when: false
+  changed_when: false
+
+- name: Install Helm
+  ansible.builtin.shell: |
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  when: helm_check.rc != 0
+  register: helm_install
+  changed_when: helm_install.rc == 0
+

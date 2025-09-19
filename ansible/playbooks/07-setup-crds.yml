@@ -7,3 +7,4 @@
     - gateway-api
     - cert-manager
     - argocd
+    - envoy-gateway

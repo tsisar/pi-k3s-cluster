@@ -1,0 +1,5 @@
+---
+# Envoy Gateway CRDs configuration
+envoy_gateway:
+  version: "v1.5.1"
+  helm_repo: "oci://docker.io/envoyproxy/gateway-helm"

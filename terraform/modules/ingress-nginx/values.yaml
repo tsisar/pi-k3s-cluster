@@ -7,7 +7,3 @@ controller:
   ingressClassResource:
     enabled: true
     default: true
-  gatewayAPI:
-    enabled: true
-    gatewayClassName: nginx
-    installCRDs: true

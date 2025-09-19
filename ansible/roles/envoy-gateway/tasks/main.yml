@@ -1,0 +1,23 @@
+---
+# Install Envoy Gateway CRDs using Helm
+- name: Install Envoy Gateway CRDs using Helm
+  ansible.builtin.shell: |
+    helm template eg oci://docker.io/envoyproxy/gateway-crds-helm \
+      --version v1.5.1 \
+      --set crds.gatewayAPI.enabled=false \
+      --set crds.envoyGateway.enabled=true \
+      | kubectl apply --server-side -f -
+  register: crds_result
+  changed_when: crds_result.rc == 0
+
+- name: Wait for Envoy Gateway CRDs to be ready
+  ansible.builtin.shell: |
+    kubectl get crd envoyproxies.gateway.envoyproxy.io
+  register: envoy_crd_check
+  until: envoy_crd_check.rc == 0
+  retries: 10
+  delay: 5
+
+- name: Display Envoy Gateway CRDs installation result
+  ansible.builtin.debug:
+    msg: "Envoy Gateway CRDs installed successfully"
