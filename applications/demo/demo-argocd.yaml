@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo
+  namespace: argocd
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo
+  source:
+    repoURL: "https://github.com/tsisar/pi-k3s-cluster.git"
+    targetRevision: ubuntu
+    path: helm/demo
+    helm:
+      releaseName: dome
+      valueFiles:
+        - values.yaml
+      parameters:
+        - name: ingress.host
+          value: "demo.k3s.local"
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
