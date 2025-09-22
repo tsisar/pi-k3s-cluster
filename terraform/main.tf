@@ -60,12 +60,16 @@ module "monitoring" {
 }
 
 module "argo_cd" {
-  source                    = "./modules/argo-cd"
-  for_each                  = var.enabled_modules.argo_cd ? { "enabled" = {} } : {}
-  dex_git_hub_client_id     = var.dex_git_hub_client_id
-  dex_git_hub_client_secret = var.dex_git_hub_client_secret
-  host                      = var.hosts.argo
-  email                     = var.email
+  source   = "./modules/argo-cd"
+  for_each = var.enabled_modules.argo_cd ? { "enabled" = {} } : {}
+
+  host  = var.hosts.argo
+  email = var.email
+
+  nexus_api_url  = var.nexus_api_url
+  nexus_password = var.nexus_password
+  nexus_prefix   = var.nexus_prefix
+  nexus_username = var.nexus_username
 
   depends_on = [module.ingress_nginx]
 }
@@ -79,8 +83,8 @@ module "keycloak" {
 
 resource "argocd_application" "demo" {
   metadata {
-    name       = "demo-root"
-    namespace  = "argocd"
+    name      = "demo-root"
+    namespace = "argocd"
   }
 
   spec {

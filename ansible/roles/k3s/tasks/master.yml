@@ -1,4 +1,23 @@
 ---
+- name: Ensure k3s config dir exists
+  become: true
+  ansible.builtin.file:
+    path: "/etc/rancher/k3s/"
+    state: directory
+    mode: "0755"
+
+- name: Render k3s config with TLS SANs
+  become: true
+  ansible.builtin.copy:
+    dest: "/etc/rancher/k3s/config.yaml"
+    mode: "0644"
+    content: |
+      write-kubeconfig-mode: "0644"
+      tls-san:
+      {% for san in k3s_tls_sans %}
+        - {{ san }}
+      {% endfor %}
+
 - name: Install K3s master
   ansible.builtin.shell: |
     curl -sfL {{ k3s_install_url }} | sh -s - {% if k3s_disable_traefik %}--disable traefik{% endif %}
@@ -33,4 +52,3 @@
   when: helm_check.rc != 0
   register: helm_install
   changed_when: helm_install.rc == 0
-

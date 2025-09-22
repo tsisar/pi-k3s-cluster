@@ -20,12 +20,19 @@ variable "host" {
     type        = string
 }
 
-variable "dex_git_hub_client_id" {
-  description = "Dex GitHub client ID"
-  type        = string
+variable "nexus_api_url" {
+  type = string
 }
 
-variable "dex_git_hub_client_secret" {
-  description = "Dex GitHub client secret"
-  type        = string
+variable "nexus_prefix" {
+  type = string
+}
+
+variable "nexus_username" {
+  type = string
+}
+
+variable "nexus_password" {
+  type      = string
+  sensitive = true
 }

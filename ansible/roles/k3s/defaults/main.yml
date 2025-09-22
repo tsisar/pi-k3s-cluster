@@ -4,3 +4,7 @@ k3s_disable_traefik: true
 k3s_install_url: "https://get.k3s.io"
 k3s_config_path: "/etc/rancher/k3s/k3s.yaml"
 k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
+
+k3s_tls_sans:
+  - 10.13.1.50
+  - "{{ ansible_default_ipv4.address }}"

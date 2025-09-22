@@ -20,26 +20,13 @@ variable "mikrotik_password" {
   type        = string
 }
 
-variable "dex_git_hub_client_id" {
-  description = "Dex GitHub client ID"
-  type        = string
-  default = ""
-}
-
-variable "dex_git_hub_client_secret" {
-  description = "Dex GitHub client secret"
-  type        = string
-  sensitive   = true
-  default = ""
-}
-
 variable "enabled_modules" {
-  type = map(bool)
+  type    = map(bool)
   default = {}
 }
 
 variable "hosts" {
-  type = map(string)
+  type    = map(string)
   default = {}
 }
 
@@ -47,4 +34,21 @@ variable "influxdb_token" {
   description = "InfluxDB token"
   type        = string
   sensitive   = true
+}
+
+variable "nexus_api_url" {
+  type = string
+}
+
+variable "nexus_prefix" {
+  type = string
+}
+
+variable "nexus_username" {
+  type = string
+}
+
+variable "nexus_password" {
+  type      = string
+  sensitive = true
 }

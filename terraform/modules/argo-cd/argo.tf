@@ -1,9 +1,10 @@
 locals {
-  values_yaml_content = templatefile("${path.module}/values.yaml.tpl", {
+  values_yaml_content = templatefile("${path.module}/argo.values.yaml.tpl", {
     server_insecure = var.server_insecure,
     host            = "https://${var.host}",
   })
-  hashed_password = bcrypt("admin")
+  username = "admin"
+  password = "admin"
 }
 
 # resource "random_password" "argo_cd" {
@@ -40,15 +41,7 @@ resource "helm_release" "argo_cd" {
   set_sensitive = [
     {
       name  = "configs.secret.argocdServerAdminPassword"
-      value = local.hashed_password
-    },
-    {
-      name  = "configs.secret.extra.dexGitHubClientID"
-      value = var.dex_git_hub_client_id
-    },
-    {
-      name  = "configs.secret.extra.dexGitHubClientSecret"
-      value = var.dex_git_hub_client_secret
+      value = bcrypt(local.password)
     }
   ]
   lifecycle {
@@ -111,10 +104,10 @@ output "host" {
 }
 
 output "username" {
-  value = "admin"
+  value = local.username
 }
 
 output "password" {
-  value     = "admin"
+  value     = local.password
   sensitive = true
 }
